@@ -1,0 +1,110 @@
+name:                   misfortune
+version:                0.1
+stability:              experimental
+
+cabal-version:          >= 1.2
+build-type:             Simple
+
+author:                 James Cook <mokus@deepbondi.net>
+maintainer:             James Cook <mokus@deepbondi.net>
+license:                PublicDomain
+homepage:               /dev/null
+
+category:               Unclassified
+synopsis:               fortune-mod clone
+description:            fortune-mod clone, in library and executable form.
+
+data-dir:               data
+data-files:             lambdabot/*.dat
+                        fortune-mod/*.dat
+                        fortune-mod/off/*.dat
+                        lambdabot/arr
+                        lambdabot/b52s
+                        lambdabot/brain
+                        lambdabot/girl19
+                        lambdabot/keal
+                        lambdabot/notoriousV
+                        lambdabot/palomer
+                        lambdabot/pinky
+                        lambdabot/protontorpedo
+                        lambdabot/stewie
+                        fortune-mod/art
+                        fortune-mod/ascii-art
+                        fortune-mod/computers
+                        fortune-mod/cookie
+                        fortune-mod/definitions
+                        fortune-mod/drugs
+                        fortune-mod/education
+                        fortune-mod/ethnic
+                        fortune-mod/food
+                        fortune-mod/fortunes
+                        fortune-mod/goedel
+                        fortune-mod/humorists
+                        fortune-mod/kids
+                        fortune-mod/law
+                        fortune-mod/linuxcookie
+                        fortune-mod/literature
+                        fortune-mod/love
+                        fortune-mod/magic
+                        fortune-mod/medicine
+                        fortune-mod/men-women
+                        fortune-mod/miscellaneous
+                        fortune-mod/news
+                        fortune-mod/people
+                        fortune-mod/pets
+                        fortune-mod/platitudes
+                        fortune-mod/politics
+                        fortune-mod/riddles
+                        fortune-mod/science
+                        fortune-mod/songs-poems
+                        fortune-mod/sports
+                        fortune-mod/startrek
+                        fortune-mod/translate-me
+                        fortune-mod/wisdom
+                        fortune-mod/work
+                        fortune-mod/zippy
+                        fortune-mod/off/astrology
+                        fortune-mod/off/black-humor
+                        fortune-mod/off/definitions
+                        fortune-mod/off/drugs
+                        fortune-mod/off/ethnic
+                        fortune-mod/off/hphobia
+                        fortune-mod/off/limerick
+                        fortune-mod/off/misandry
+                        fortune-mod/off/miscellaneous
+                        fortune-mod/off/misogyny
+                        fortune-mod/off/politics
+                        fortune-mod/off/privates
+                        fortune-mod/off/racism
+                        fortune-mod/off/religion
+                        fortune-mod/off/riddles
+                        fortune-mod/off/sex
+                        fortune-mod/off/songs-poems
+                        fortune-mod/off/vulgarity
+                        
+                        
+
+Library
+  hs-source-dirs:       src
+  exposed-modules:      Data.Fortune
+  other-modules:        Data.Fortune.FortuneFile
+                        Data.Fortune.Index
+                        Data.Fortune.Stats
+  build-depends:        base >= 3 && < 5,
+                        bytestring,
+                        cereal,
+                        directory,
+                        filepath,
+                        random,
+                        text,
+                        utf8-string,
+                        vector
+
+Executable misfortune-strfile
+  hs-source-dirs:       src
+  main-is:              StrFile.hs
+
+Executable misfortune
+  hs-source-dirs:       src
+  main-is:              Fortune.hs
+  build-depends:        random-fu
