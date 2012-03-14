@@ -20,6 +20,7 @@ data-files:             normal/lambdabot/*.dat
                         normal/lambdabot/b52s
                         normal/lambdabot/brain
                         normal/lambdabot/farber
+                        normal/lambdabot/ghc
                         normal/lambdabot/girl19
                         normal/lambdabot/keal
                         normal/lambdabot/notoriousV

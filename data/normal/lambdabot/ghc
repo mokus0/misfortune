@@ -1,0 +1,283 @@
+rts/sm/Sanity.h:24:0: error: conflicting types for 'checkSanity'
+%
+strange object 28
+%
+try_stub.o: unknown symbol `Safe_zdffibonaccizuhszuaM1_closure'
+%
+absApply: Duff function
+%
+accepting non-standard pattern guards (-fglasgow-exts to suppress this message)
+%
+adjustor creation not supported on this platform
+%
+A lazy (~) pattern connot bind existential type variables
+%
+All of the type variables in the constraint are already in scope (at least one must be universally quantified here)
+%
+All the type patterns for a generic type constructor must be identical
+%
+Ambiguous constraint
+%
+ARGH! Jump uses %esi or %edi with -monly-2-regs
+%
+At least one of the forall'd type variables mentioned by the constraint must be reachable from the type after the '=>'
+%
+Bad eta expand
+%
+bindings for unlifted types aren't allowed
+%
+Bindings in hs-boot files are not allowed
+%
+Cannot desugar this Template Haskell declaration
+%
+Cannot unify a type variable with a type scheme
+%
+Can't combine named fields with locally-quantified type variables or context
+%
+Can't happen
+%
+Can't match unequal length lists
+%
+Can't mix generic and non-generic equations for class method
+%
+Can't reify a non-Haskell-98 data constructor
+%
+Can't represent a guarded lambda in Template Haskell
+%
+Can't represent explicit kind signatures yet
+%
+Can't represent Oxford brackets
+%
+Can't splice the polymorphic local variable
+%
+Command stack underflow at command
+%
+CPR Analysis tried to take the lub of a function and a tuple
+%
+Cycle in class declarations (via superclasses)
+%
+Cycle in type synonym declarations
+%
+Dangerous-looking argument. Probable cause: bad unsafeCoerce#
+%
+Data constructor does not return its parent type
+%
+deadlock: main thread blocked in a strange way
+%
+does not have the required strict field(s)
+%
+DsExpr.dsExpr: Infinite parallel array!
+%
+Duplicate binding in parallel list comprehension
+%
+Duplicate instance declarations
+%
+Empty record update
+%
+eval_thunk_selector: strange selectee
+%
+even with cunning newtype deriving the newtype is recursive
+%
+Exception: kevind stub
+%
+Exotic pattern inside meta brackets
+%
+Exotic Stmt in meta brackets
+%
+falls under the monomorphism restriction
+%
+For basic information, try the `--help' option.
+%
+foreign declaration uses deprecated non-standard syntax
+%
+From-type of Coerce differs from type of enclosed expression
+%
+Functional dependencies conflict between instance declarations
+%
+Generic method type is too complex
+%
+GHC error in desugarer lookup
+%
+GHC internal error
+%
+GHCi's bytecode generation machinery can't handle 64-bit code properly yet.
+%
+GHC's heap exhausted
+%
+GHC stack-space overflow
+%
+GHC stage restriction
+%
+Illegal binding of built-in syntax
+%
+Illegal constraint
+%
+Illegal deriving item
+%
+Illegal overloaded type signature(s)
+%
+Illegal polymorphic type
+%
+Illegal polymorphic type signature in pattern
+%
+Illegal unboxed tuple type as function argument
+%
+Illegal unlifted type argument
+%
+Implicit-parameter bindings illegal in a parallel list comprehension
+%
+Implicit parameters escape from the monomorphic top-level binding(s)
+%
+In a case expression, type of scrutinee does not match patterns
+%
+Inaccessible case alternative
+%
+In a RHS constructor application, con type doesn't match arg types
+%
+Inferred type is less polymorphic than expected
+%
+Info table already?
+%
+Interesting!  A join var that isn't let-no-escaped
+%
+internal error: Invalid object in processHeapClosureForDead
+%
+internal error: scavenge_mark_stack: unimplemented/strange closure type -1368815400 @ 0x2aaaae6981f8
+%
+invalid character
+%
+Its main purpose is to encapsulate the Horrible State Hack
+%
+jump island out of range
+%
+Kind error
+%
+Kinds don't match in type application
+%
+Kind signature on data type declaration has non-* return kind
+%
+ld64: INFO    171: Multigot invoked. Gp relative region broken up into 2 separate regions.
+%
+ld64: WARNING 47 : This module contains branch instruction(s) that might degrade performance on an R4000 processor.
+%
+lexical error in string/character literal
+%
+magic number mismatch: old/corrupt interface file?
+%
+Malformed constructor signature
+%
+Malformed context in instance header
+%
+Malformed context in type or class declaration
+%
+Malformed predicate
+%
+mkProtoBCO: stack use won't fit in 16 bits 150813
+%
+More than one type pattern for a single generic type constructor
+%
+Multiple default declarations
+%
+My brain just exploded.
+%
+NEVER use commas within those string literals, cpp will ruin your day
+%
+No constructor has all these fields
+%
+No explicit method nor default method
+%
+Non-type variables in constraint
+%
+No parameters for class
+%
+Occurs check: cannot construct the infinite kind
+%
+Occurs check: cannot construct the infinite type
+%
+Offending Program
+%
+On Alpha, I can only handle 4 non-floating-point arguments to foreign export dynamic
+%
+Only unit numeric type pattern is valid
+%
+Oops!  Entered absent arg
+%
+panic! (the `impossible' happened, GHC version 6.4)
+%
+parse error in data/newtype declaration
+%
+parse error on input
+%
+parse error (possibly incorrect indentation)
+%
+PArse error (possibly incorrect indentation)
+%
+Pattern bindings (except simple variables) not allowed in instance declarations
+%
+Precedence out of range
+%
+primitive string literal must contain only characters <= '\\\\xFF\\'
+%
+Qualified name in function definition
+%
+scavenge_stack: weird activation record found on stack
+%
+scavenge: unimplemented/strange closure type
+%
+Simplifier reached fixed point
+%
+Splices are not allowed in hs-boot files
+%
+TELL SIMON: evalAbsence
+%
+the eta-reduction property does not hold
+%
+The instance types do not agree with the functional dependencies of the class
+%
+There must be at least one non-type-variable in the instance head
+%
+The signature contexts in a mutually recursive group should all be identical
+%
+ This is very gruesome indeed
+%
+Too many parameters for class
+%
+Try -fglasgow-exts for GHC's newtype-deriving extension
+%
+Type found where type variable expected
+%
+Type signature given for an expression
+%
+Unable to mmap( MAP_FIXED ) for Jump Islands
+%
+Unexpected kind unification failure
+%
+Unexpected strictness annotation
+%
+Unexpected type splice
+%
+Urk infer
+%
+Urk! Inventing strangely-kinded void TyCon: [..] (* -> *) -> * -> *
+%
+Urk! Inventing strangely-kinded void TyCon: :t{tc a5gUj} (* -> *) -> * -> *
+%
+Urk! Inventing strangely-kinded void TyCon: ZCt{tc a2AN} (* -> *) -> * -> *
+%
+Use -fallow-incoherent-instances
+%
+Use -fcontext-stack20 to increase stack size to (e.g.) 20
+%
+Use -fglasgow-exts to allow GADTs
+%
+Use -fglasgow-exts to allow multi-parameter classes
+%
+WARNING: SE CAFs unsupported, forcing UPD instead
+%
+Warning: you can make GHC diverge by using SPECIALISE INLINE on an ordinarily-recursive function.
+%
+yi-static: internal error: TSO object entered!
+%
+You can get a PhD for explaining the True Meaning of this last construct
+%
+You need -fglasgow-exts to derive an instance for this class
