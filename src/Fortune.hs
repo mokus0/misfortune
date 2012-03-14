@@ -1,20 +1,17 @@
 {-# LANGUAGE RecordWildCards #-}
-module Main where
+module Main (main) where
 
 import Control.Applicative
 import Control.Monad
-import Data.List
 import Data.Fortune
-import Data.Random
+import Data.Random hiding (Normal)
 import Data.Random.Distribution.Categorical
 import Data.Version
 import qualified Data.Text as T
 import Paths_misfortune
 import System.Console.GetOpt
-import System.Directory
 import System.Environment
 import System.Exit
-import System.FilePath
 import Text.Printf
 
 versionString = "misfortune " ++ showVersion version
@@ -56,11 +53,14 @@ parseArgs = do
     when (H `elem` opts) (usage [])
     when (V `elem` opts) printVersion
     
+    let fortuneType
+            | A `elem` opts = All
+            | O `elem` opts = Offensive
+            | otherwise     = Normal
+    
     fortuneFiles <- if null files
-        then defaultFortuneFiles (A `elem` opts) (O `elem` opts)
-        else do
-            searchPath <- getFortuneSearchPath
-            mapM (resolve searchPath) files
+        then defaultFortuneFiles fortuneType
+        else mapM (resolveFortuneFile All) files
     
     return Args
         { equalProb = E `elem` opts
@@ -91,37 +91,6 @@ main = do
 getWeight args
     | equalProb args    = const (return 1)
     | otherwise         = getNumFortunes
-
-defaultSearchPath = do
-    dir <- getDataDir
-    return
-        [ "."
-        , dir
-        , dir </> "lambdabot"
-        , dir </> "fortune-mod"
-        , dir </> "fortune-mod" </> "off"
-        ]
-
-getEnv' key = lookup key <$> getEnvironment
-getFortuneSearchPath = getEnv' "MISFORTUNE_PATH" >>= maybe defaultSearchPath (return . chop)
-    where
-        chop "" = []
-        chop str = case break (':' ==) str of
-            (x, y) -> x : chop (dropWhile (':' ==) y)
-
-resolve dirs file
-    | isAbsolute file   = return file
-    | otherwise         = search dirs
-    where
-        -- TODO: list files that would have matched if the index file had existed
-        search [] = fail ("Could not find fortune file: " ++ show file)
-        search (dir:dirs) = do
-            let path = dir </> file
-            exists      <- doesFileExist path
-            indexExists <- doesFileExist (path <.> "dat")
-            if exists && indexExists
-                then return path
-                else search dirs
 
 fortune [] = return (0,0)
 fortune [n] = do

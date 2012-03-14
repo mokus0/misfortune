@@ -2,7 +2,17 @@ module Data.Fortune
      ( module Data.Fortune.FortuneFile
      , module Data.Fortune.Index
      , module Data.Fortune.Stats
-     , module Data.Fortune
+     
+     , listFortuneFiles
+     , findFortuneFile
+     
+     , FortuneType(..)
+     , getFortuneDir
+     , defaultFortuneFiles
+     , defaultFortuneFileNames
+     
+     , resolveFortuneFile
+     , randomFortune
      ) where
 
 import Data.Fortune.FortuneFile
@@ -10,49 +20,97 @@ import Data.Fortune.Index
 import Data.Fortune.Stats
 
 import Control.Applicative
-import Data.List
+import Control.Exception
+import Data.IORef
+import Data.Monoid hiding (All)
+import Data.Random hiding (Normal)
+import qualified Data.Text as T
 import Paths_misfortune
 import System.Directory
 import System.FilePath
-import System.Random
 
-getFortuneDir = getDataDir
+-- list the full paths of all visible items in the given directory
+listDir dir =
+    map (dir </>) . filter (not . hidden) <$> getDirectoryContents dir
+    where hidden name = take 1 name == "."
 
-fortuneFilesIn recursive dir = do
-    let hidden ('.':_)  = True
-        hidden _        = False
+traverseDir onDir onFile dir = 
+    mconcat <$> (mapM onItem =<< listDir dir)
+    where onItem path = do
+            isDir <- doesDirectoryExist path
+            if isDir then onDir path else onFile path
     
-    contents <- filter (not . hidden) <$> getDirectoryContents dir
-    concat <$> sequence
-        [ do 
-            isFile   <- doesFileExist path
-            hasIndex <- doesFileExist (path <.> "dat")
-            if isFile
-                then return [path | hasIndex]
-                else if recursive 
-                    then fortuneFilesIn recursive path
-                    else return []
-        | file <- contents
-        , not (".dat" `isSuffixOf` file)
-        , let path = dir </> file
-        ]
 
-defaultFortuneFiles allFortunes offensiveOnly = do
-    dir <- getFortuneDir
-    case (allFortunes, offensiveOnly) of
-        (True,  _    ) -> fortuneFilesIn True dir
-        (False, True ) -> concat <$> mapM (fortuneFilesIn False)
-            [ dir </> "off"
-            , dir </> "off" </> "lambdabot"
-            , dir </> "off" </> "fortune-mod"
-            ]
-        (False, False) -> concat <$> mapM (fortuneFilesIn False)
-            [ dir
-            , dir </> "lambdabot"
-            , dir </> "fortune-mod"
-            ]
+listFortuneFiles recursive = search
+    where
+        search = traverseDir onDir onFile
+        onDir dir
+             | recursive    = search dir
+             | otherwise    = return []
+        onFile path
+            | takeExtension path == ".dat"  = return []
+            | otherwise = do
+                hasIndex <- doesFileExist (path <.> "dat")
+                return [path | hasIndex ]
 
-randomFortune f = do
-    n <- getNumFortunes f
-    i <- randomRIO (0, n-1)
-    getFortune f i
+findFortuneFile recursive file dir = do
+    done <- newIORef False
+    
+    let search = traverseDir onDir onFile
+        
+        onDir dir = do
+            isDone <- readIORef done
+            if recursive && not isDone
+                then search dir
+                else return mempty
+        
+        onFile path = do
+            isDone <- readIORef done
+            if isDone || takeFileName path /= file
+                then return mempty
+                else do
+                    hasIndex <- doesFileExist (path <.> "dat")
+                    if hasIndex
+                        then do
+                            writeIORef done True
+                            return (First (Just path))
+                        else return mempty
+    
+    getFirst <$> search dir
+
+data FortuneType
+    = All
+    | Normal
+    | Offensive
+    deriving (Eq, Ord, Read, Show, Enum, Bounded)
+
+getFortuneDir fortuneType = do
+    dir <- getDataDir
+    return $! case fortuneType of
+        All         -> dir
+        Normal      -> dir </> "normal"
+        Offensive   -> dir </> "offensive"
+
+defaultFortuneFiles fortuneType = 
+    getFortuneDir fortuneType >>= listFortuneFiles True
+
+defaultFortuneFileNames fType = map takeFileName <$> defaultFortuneFiles fType
+
+resolveFortuneFile fType path
+    | isAbsolute path   = return path
+    | otherwise         = do
+        exists <- doesFileExist path
+        if exists
+            then return path
+            else do
+                mbPath <- findFortuneFile True path =<< getFortuneDir fType
+                maybe
+                    (fail ("couldn't find fortune file: " ++ path))
+                    return mbPath
+
+randomFortune path = do
+    path <- resolveFortuneFile All path
+    bracket (openFortuneFile path '%' False) closeFortuneFile $ \f -> do
+        n <- getNumFortunes f
+        i <- sample (uniform 0 (n-1))
+        T.unpack <$> getFortune f i
