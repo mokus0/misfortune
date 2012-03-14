@@ -46,6 +46,26 @@ data Args = Args
     , fortuneFiles      :: [FilePath]
     }
 
+getEnv' key = lookup key <$> getEnvironment
+getSearchPath defaultType 
+    = getEnv' "MISFORTUNE_PATH"
+    >>= maybe defaultSearchPath (return . map f . split)
+    where
+        -- entries with a '+' will be searched recursively
+        -- paths that actually start with a '+', such as "+foo",
+        -- can be given as '++foo' or '-+foo'
+        f ('+' : it) = (it, True)
+        f ('-' : it) = (it, False)
+        f it         = (it, False)
+        
+        split [] = []
+        split xs = a : split (drop 1 b)
+            where (a, b) = break (':' ==) xs
+        
+        defaultSearchPath = do
+            dir <- getFortuneDir defaultType
+            return [(".", False), (dir, True)]
+
 parseArgs = do
     (opts, files, errors) <- getOpt Permute flags <$> getArgs
     when (not (null errors))       (usage errors)
@@ -57,9 +77,12 @@ parseArgs = do
             | O `elem` opts = Offensive
             | otherwise     = Normal
     
+    
     fortuneFiles <- if null files
         then defaultFortuneFiles fortuneType
-        else resolveFortuneFiles All files
+        else do
+            searchPath <- getSearchPath All
+            findFortuneFilesIn searchPath files
     
     return Args
         { equalProb = E `elem` opts

@@ -5,14 +5,14 @@ module Data.Fortune
      
      , listFortuneFiles
      , findFortuneFile
+     , findFortuneFileIn
+     , findFortuneFilesIn
      
      , FortuneType(..)
      , getFortuneDir
      , defaultFortuneFiles
      , defaultFortuneFileNames
      
-     , resolveFortuneFile
-     , resolveFortuneFiles
      , randomFortune
      , randomFortuneFromRandomFile
      , defaultFortuneDistribution
@@ -40,25 +40,51 @@ listDir dir =
     map (dir </>) . filter (not . hidden) <$> getDirectoryContents dir
     where hidden name = take 1 name == "."
 
-traverseDir onFile = fix $ \search dir ->
+traverseDir rec onFile = fix $ \search dir ->
     let onItem path = do
             isDir <- doesDirectoryExist path
-            if isDir then search path else onFile path
+            if isDir
+                then if rec 
+                    then search path
+                    else return []
+                else onFile path
      in concat <$> (mapM onItem =<< listDir dir)
 
-listFortuneFiles = traverseDir onFile
+doesFortuneFileExist path = liftA2 (&&)
+    (doesFileExist path)
+    (doesIndexFileExist path)
+
+doesIndexFileExist path = doesFileExist (path <.> "dat")
+
+listFortuneFiles rec = traverseDir rec onFile
     where onFile path
             | takeExtension path == ".dat"  = return []
             | otherwise = do
-                hasIndex <- doesFileExist (path <.> "dat")
+                hasIndex <- doesIndexFileExist path
                 return [path | hasIndex ]
 
-findFortuneFile file = traverseDir onFile
-    where onFile path 
+findFortuneFile rec dir file = liftA2 (++) checkHere (search dir)
+    where 
+        checkHere
+            | dir /= "."    = return []
+            | otherwise     = case splitPath file of
+                [_] -> return [] -- search will find it
+                _   -> do
+                    exists <- doesFortuneFileExist file
+                    return [file | exists]
+        
+        search = traverseDir rec onFile
+        onFile path 
             | takeFileName path /= file = return []
             | otherwise = do
-                hasIndex <- doesFileExist (path <.> "dat")
+                hasIndex <- doesIndexFileExist path
                 return [ path | hasIndex ]
+
+findFortuneFileIn dirs file = concat <$> sequence
+    [ findFortuneFile rec dir file | (dir, rec) <- dirs]
+
+findFortuneFilesIn dirs files = 
+    concat <$> mapM (findFortuneFileIn dirs) files
 
 data FortuneType
     = All
@@ -74,22 +100,9 @@ getFortuneDir fortuneType = do
         Offensive   -> dir </> "offensive"
 
 defaultFortuneFiles fortuneType = 
-    getFortuneDir fortuneType >>= listFortuneFiles
+    getFortuneDir fortuneType >>= listFortuneFiles True
 
 defaultFortuneFileNames fType = map takeFileName <$> defaultFortuneFiles fType
-
-resolveFortuneFile fType path
-    | isAbsolute path   = return [path]
-    | otherwise         = do
-        exists <- doesFileExist path
-        hasIndex <- doesFileExist (path <.> "dat")
-        otherOccurrences <- case splitPath path of
-            [_] -> findFortuneFile path =<< getFortuneDir fType
-            _   -> return []
-        
-        return ([ path | exists && hasIndex ] ++ otherOccurrences)
-
-resolveFortuneFiles fType = fmap concat . mapM (resolveFortuneFile fType)
 
 randomFortune [] = do
     paths <- defaultFortuneFiles Normal
