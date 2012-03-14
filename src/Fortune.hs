@@ -7,7 +7,6 @@ import Data.Fortune
 import Data.Random hiding (Normal)
 import Data.Random.Distribution.Categorical
 import Data.Version
-import qualified Data.Text as T
 import Paths_misfortune
 import System.Console.GetOpt
 import System.Environment
@@ -60,7 +59,7 @@ parseArgs = do
     
     fortuneFiles <- if null files
         then defaultFortuneFiles fortuneType
-        else mapM (resolveFortuneFile All) files
+        else resolveFortuneFiles All files
     
     return Args
         { equalProb = E `elem` opts
@@ -74,33 +73,16 @@ main = do
     
     when (null fortunes) (usage ["No fortunes specified"])
     
-    weights  <- mapM (getWeight args) fortunes
+    dist <- getDist args fortunes
     
     if printDist args
         then sequence_
             -- TODO: merge paths into a tree for nicer presentation
-            [ printf "%7.2f%%: %s\n" (100 * fromIntegral weight / totalWeight) path
-            | let totalWeight = fromIntegral (sum weights) :: Float
-            , (path, weight) <- zip (fortuneFiles args) weights
+            [ printf "%7.2f%%: %s\n" (100 * weight) (fortuneFilePath file)
+            | (weight, file) <- toList dist
             ]
-        else do
-            (i, j) <- sample (fortune weights)
-            fortune <- getFortune (fortunes !! i) j
-            putStrLn (T.unpack fortune)
+        else putStrLn =<< randomFortuneFromRandomFile (rvar dist)
 
-getWeight args
-    | equalProb args    = const (return 1)
-    | otherwise         = getNumFortunes
-
-fortune [] = return (0,0)
-fortune [n] = do
-    j <- uniform 0 (n-1)
-    return (0, j)
-fortune cs = do
-    (i, n) <- sample $ fromWeightedList
-         [ (fromIntegral c :: Float, (i, c))
-         | (i, c) <- zip [0..] cs
-         ]
-    j <- uniform 0 (n-1)
-    return (i, j)
-
+getDist args files
+    | equalProb args    = return ( fromWeightedList [ (1, f) | f <- files ])
+    | otherwise         = defaultFortuneDistribution files

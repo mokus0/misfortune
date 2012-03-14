@@ -3,6 +3,8 @@ module Data.Fortune.FortuneFile
      ( FortuneFile
      , openFortuneFile
      , closeFortuneFile
+     , fortuneFilePath
+     , fortuneIndexPath
      , getIndex
      , rebuildIndex
      , getFortune
@@ -34,6 +36,7 @@ data FortuneFile = FortuneFile
     , fortuneIndex      :: !(MVar (Maybe Index))
     }
 
+fortuneFilePath = fortunePath
 fortuneIndexPath f = fortunePath f <.> "dat"
 
 openFortuneFile path delim writeMode = do
