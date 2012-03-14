@@ -57,7 +57,7 @@ parseArgs = do
     when (V `elem` opts) printVersion
     
     fortuneFiles <- if null files
-        then defaultFiles (A `elem` opts) (O `elem` opts)
+        then defaultFortuneFiles (A `elem` opts) (O `elem` opts)
         else do
             searchPath <- getFortuneSearchPath
             mapM (resolve searchPath) files
@@ -88,39 +88,9 @@ main = do
             fortune <- getFortune (fortunes !! i) j
             putStrLn (T.unpack fortune)
 
-getWeight args fortune
-    | equalProb args    = return 1
-    | otherwise         = getNumFortunes fortune
-
-fortuneFilesIn recursive dir = do
-    let hidden ('.':_)  = True
-        hidden _        = False
-    
-    contents <- filter (not . hidden) <$> getDirectoryContents dir
-    concat <$> sequence
-        [ do 
-            isFile   <- doesFileExist path
-            hasIndex <- doesFileExist (path <.> "dat")
-            if isFile
-                then return [path | hasIndex]
-                else if recursive 
-                    then fortuneFilesIn recursive path
-                    else return []
-        | file <- contents
-        , not (".dat" `isSuffixOf` file)
-        , let path = dir </> file
-        ]
-
-defaultFiles a o = do
-    dir <- getDataDir
-    case (a, o) of
-        (True,  _    ) -> fortuneFilesIn True dir
-        (False, True ) -> fortuneFilesIn False (dir </> "fortune-mod" </> "off") 
-        (False, False) -> concat <$> mapM (fortuneFilesIn False)
-            [ dir
-            , dir </> "lambdabot"
-            , dir </> "fortune-mod"
-            ]
+getWeight args
+    | equalProb args    = const (return 1)
+    | otherwise         = getNumFortunes
 
 defaultSearchPath = do
     dir <- getDataDir

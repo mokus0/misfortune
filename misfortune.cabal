@@ -16,18 +16,22 @@ description:            fortune-mod clone, in library and executable form.
 
 data-dir:               data
 data-files:             lambdabot/*.dat
-                        fortune-mod/*.dat
-                        fortune-mod/off/*.dat
                         lambdabot/arr
                         lambdabot/b52s
                         lambdabot/brain
+                        lambdabot/farber
                         lambdabot/girl19
                         lambdabot/keal
                         lambdabot/notoriousV
                         lambdabot/palomer
                         lambdabot/pinky
+                        lambdabot/pinky-pondering
                         lambdabot/protontorpedo
                         lambdabot/stewie
+                        off/lambdabot/*.dat
+                        off/lambdabot/nixon
+                        off/lambdabot/yarr
+                        fortune-mod/*.dat
                         fortune-mod/art
                         fortune-mod/ascii-art
                         fortune-mod/computers
@@ -63,24 +67,25 @@ data-files:             lambdabot/*.dat
                         fortune-mod/wisdom
                         fortune-mod/work
                         fortune-mod/zippy
-                        fortune-mod/off/astrology
-                        fortune-mod/off/black-humor
-                        fortune-mod/off/definitions
-                        fortune-mod/off/drugs
-                        fortune-mod/off/ethnic
-                        fortune-mod/off/hphobia
-                        fortune-mod/off/limerick
-                        fortune-mod/off/misandry
-                        fortune-mod/off/miscellaneous
-                        fortune-mod/off/misogyny
-                        fortune-mod/off/politics
-                        fortune-mod/off/privates
-                        fortune-mod/off/racism
-                        fortune-mod/off/religion
-                        fortune-mod/off/riddles
-                        fortune-mod/off/sex
-                        fortune-mod/off/songs-poems
-                        fortune-mod/off/vulgarity
+                        off/fortune-mod/*.dat
+                        off/fortune-mod/astrology
+                        off/fortune-mod/black-humor
+                        off/fortune-mod/definitions
+                        off/fortune-mod/drugs
+                        off/fortune-mod/ethnic
+                        off/fortune-mod/hphobia
+                        off/fortune-mod/limerick
+                        off/fortune-mod/misandry
+                        off/fortune-mod/miscellaneous
+                        off/fortune-mod/misogyny
+                        off/fortune-mod/politics
+                        off/fortune-mod/privates
+                        off/fortune-mod/racism
+                        off/fortune-mod/religion
+                        off/fortune-mod/riddles
+                        off/fortune-mod/sex
+                        off/fortune-mod/songs-poems
+                        off/fortune-mod/vulgarity
                         
                         
 
@@ -90,6 +95,7 @@ Library
   other-modules:        Data.Fortune.FortuneFile
                         Data.Fortune.Index
                         Data.Fortune.Stats
+                        Paths_misfortune
   build-depends:        base >= 3 && < 5,
                         bytestring,
                         cereal,
