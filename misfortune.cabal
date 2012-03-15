@@ -15,7 +15,9 @@ synopsis:               fortune-mod clone
 description:            fortune-mod clone, in library and executable form.
 
 data-dir:               data
-data-files:             normal/lambdabot/*.dat
+data-files:             normal/*.dat
+                        normal/bash
+                        normal/lambdabot/*.dat
                         normal/lambdabot/arr
                         normal/lambdabot/b52s
                         normal/lambdabot/brain
@@ -29,6 +31,8 @@ data-files:             normal/lambdabot/*.dat
                         normal/lambdabot/pinky-pondering
                         normal/lambdabot/protontorpedo
                         normal/lambdabot/stewie
+                        normal/*.dat
+                        offensive/bash
                         offensive/lambdabot/*.dat
                         offensive/lambdabot/nixon
                         offensive/lambdabot/yarr
