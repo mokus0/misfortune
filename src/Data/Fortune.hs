@@ -13,6 +13,11 @@ module Data.Fortune
      , defaultFortuneFiles
      , defaultFortuneFileNames
      
+     , defaultFortuneSearchPath
+     , getFortuneSearchPath
+     , resolveFortuneFile
+     , resolveFortuneFiles
+     
      , randomFortune
      , randomFortuneFromRandomFile
      , defaultFortuneDistribution
@@ -33,6 +38,7 @@ import Data.Random.Distribution.Categorical
 import qualified Data.Text as T
 import Paths_misfortune
 import System.Directory
+import System.Environment
 import System.FilePath
 
 -- list the full paths of all visible items in the given directory
@@ -103,6 +109,35 @@ defaultFortuneFiles fortuneType =
     getFortuneDir fortuneType >>= listFortuneFiles True
 
 defaultFortuneFileNames fType = map takeFileName <$> defaultFortuneFiles fType
+
+defaultFortuneSearchPath fortuneType = do
+    dir <- getFortuneDir fortuneType
+    return [(".", False), (dir, True)]
+
+getEnv' key = lookup key <$> getEnvironment
+getFortuneSearchPath defaultType
+    = getEnv' "MISFORTUNE_PATH"
+    >>= maybe (defaultFortuneSearchPath defaultType)
+              (return . map f . split)
+    where
+        -- entries with a '+' will be searched recursively
+        -- paths that actually start with a '+', such as "+foo",
+        -- can be given as '++foo' or '-+foo'
+        f ('+' : it) = (it, True)
+        f ('-' : it) = (it, False)
+        f it         = (it, False)
+        
+        split [] = []
+        split xs = a : split (drop 1 b)
+            where (a, b) = break (':' ==) xs
+
+resolveFortuneFile defaultType file = do
+    dirs <- getFortuneSearchPath defaultType
+    findFortuneFileIn dirs file
+
+resolveFortuneFiles defaultType files = do
+    dirs <- getFortuneSearchPath defaultType
+    findFortuneFilesIn dirs files
 
 randomFortune [] = do
     paths <- defaultFortuneFiles Normal
