@@ -92,11 +92,10 @@ data-files:             normal/*.dat
                         offensive/fortune-mod/sex
                         offensive/fortune-mod/songs-poems
                         offensive/fortune-mod/vulgarity
-                        
-                        
 
 Library
   hs-source-dirs:       src
+  ghc-options:          -fwarn-unused-binds -fwarn-unused-imports
   exposed-modules:      Data.Fortune
   other-modules:        Data.Fortune.FortuneFile
                         Data.Fortune.Index
@@ -107,16 +106,17 @@ Library
                         cereal,
                         directory,
                         filepath,
-                        random,
+                        random-fu,
                         text,
                         utf8-string,
                         vector
 
 Executable misfortune-strfile
   hs-source-dirs:       src
+  ghc-options:          -fwarn-unused-binds -fwarn-unused-imports
   main-is:              StrFile.hs
 
 Executable misfortune
   hs-source-dirs:       src
+  ghc-options:          -fwarn-unused-binds -fwarn-unused-imports
   main-is:              Fortune.hs
-  build-depends:        random-fu
