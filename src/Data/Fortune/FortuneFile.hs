@@ -10,6 +10,7 @@ module Data.Fortune.FortuneFile
      , getFortune
      , getFortunes
      , getNumFortunes
+     , appendFortune
      ) where
 
 import Control.Applicative
@@ -42,7 +43,8 @@ fortuneIndexPath f = fortunePath f <.> "dat"
 
 openFortuneFile path delim writeMode = do
     exists <- doesFileExist path
-    when (not exists) (fail ("openFortuneFile: file does not exist: " ++ show path))
+    when (not (exists || writeMode))
+        (fail ("openFortuneFile: file does not exist: " ++ show path))
     
     fileRef <- newMVar Nothing
     ixRef   <- newMVar Nothing
@@ -206,3 +208,30 @@ getFortunes f = withFortuneFile f $ \file -> do
 getNumFortunes f = do
     ix <- getIndex f
     getSum . numFortunes <$> getStats ix
+
+appendFortune f fortune = do
+    -- TODO: detect whether a reindex is actually needed
+    rebuildIndex f
+    withFileAndIndex f $ \file ix -> do
+        offset <- max 0 . getMax . offsetAfter <$> getStats ix
+        hSeek file AbsoluteSeek (toInteger offset)
+        
+        
+        let enc = T.encodeUtf8
+            sep | offset == 0   = BS.empty
+                | otherwise     = enc (T.pack ['\n', fortuneDelim f, '\n'])
+            encoded = enc fortune
+        
+        BS.hPut file sep
+        BS.hPut file encoded
+        BS.hPut file (enc (T.pack "\n")) 
+            -- just to be nice to people with @cat@s
+        
+        hFlush file
+        
+        appendEntry ix IndexEntry
+            { stringOffset  = offset + BS.length sep
+            , stringBytes   = BS.length encoded
+            , stringChars   = T.length fortune
+            , stringLines   = length (T.lines fortune)
+            }

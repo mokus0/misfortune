@@ -13,14 +13,15 @@ import Data.Typeable
 
 data FortuneStats = FortuneStats
     { numFortunes   :: !(Sum Int)
+    , offsetAfter   :: !(Max Int)
     , minChars      :: !(Min Int)
     , maxChars      :: !(Max Int)
     , minLines      :: !(Min Int)
     , maxLines      :: !(Max Int)
     } deriving (Eq, Show)
 
-wrap (a, b, c, d, e) = FortuneStats a b c d e
-unwrap (FortuneStats a b c d e) = (a, b, c, d, e)
+wrap (a, b, c, (d, e, f)) = FortuneStats a b c d e f
+unwrap (FortuneStats a b c d e f) = (a, b, c, (d, e, f))
 
 instance Semigroup FortuneStats where
     s1 <> s2 = wrap (unwrap s1 <> unwrap s2)
@@ -30,14 +31,16 @@ instance Monoid FortuneStats where
 data StatsProblem
     = NegativeCount Int
     | NegativeLength Int
+    | NegativeOffset Int
     | LengthsWithoutEntries
     | EntriesWithoutLengths
     | MaxLengthLessThanMinLength
     | InconsistentLengthsForOneEntry
     deriving (Eq, Ord, Read, Show, Typeable)
 
-checkStats FortuneStats{numFortunes = Sum n, ..} = 
-    case n `compare` 0 of
+checkStats FortuneStats{numFortunes = Sum n, offsetAfter = Max o, ..}
+    | n > 0 && o < 0    = Just (NegativeOffset o)
+    | otherwise         = case n `compare` 0 of
         LT -> Just (NegativeCount n)
         EQ -> if all (mempty ==) [maxChars, maxLines]
               && all (mempty ==) [minChars, minLines]

@@ -18,7 +18,8 @@
 --         |     20 | word32be  | Minimum number of chars in a string
 --         |     24 | word32be  | Maximum number of lines in a string
 --         |     28 | word32be  | Minimum number of lines in a string
---         |     32 | 32 bytes  | reserved (set to 0 when not in use)
+--         |     32 | word32be  | Offset in string file after last char of last fortune
+--         |     36 | 28 bytes  | reserved (set to 0 when not in use)
 -- ========|========| ==========|==============
 -- table   |     ?? | entry*    | Offset given in header.  Format given below.
 --
@@ -70,11 +71,11 @@ import System.IO
 runGetM getThing = either fail return . runGet getThing
 
 magic, currentVersion :: Word32
-magic = 0xbdcbcdb
-currentVersion = 2
+magic                   = 0xbdcbcdb
+currentVersion          = 2
 
-headerLength = 64 -- bytes
-headerReservedLength = 32 -- bytes
+headerLength            = 64 -- bytes
+headerReservedLength    = 28 -- bytes
 
 data Header = Header
     { stats     :: !FortuneStats
@@ -109,6 +110,7 @@ getRestV2 = do
     minChars    <- Min . fromIntegral <$> getWord32be
     maxLines    <- Max . fromIntegral <$> getWord32be
     minLines    <- Min . fromIntegral <$> getWord32be
+    offsetAfter <- Max . fromIntegral <$> getWord32be
     skip headerReservedLength
     
     return Header {stats = FortuneStats{..}, ..}
@@ -122,6 +124,7 @@ putHeader Header {stats = FortuneStats{..}, ..} = do
     putWord32be (fromIntegral (getMin minChars))
     putWord32be (fromIntegral (getMax maxLines))
     putWord32be (fromIntegral (getMin minLines))
+    putWord32be (fromIntegral (getMax offsetAfter))
     replicateM_ headerReservedLength (putWord8 0)
 
 data Index = Index !Handle !(MVar Header)
@@ -216,14 +219,14 @@ getStats (Index _ hdrRef) = stats <$> readMVar hdrRef
 indexEntryLength = 16 -- bytes
 
 data IndexEntry = IndexEntry
-    { stringOffset  :: Int
-    , stringBytes   :: Int
-    , stringChars   :: Int
-    , stringLines   :: Int
+    { stringOffset  :: !Int
+    , stringBytes   :: !Int
+    , stringChars   :: !Int
+    , stringLines   :: !Int
     } deriving (Eq, Ord, Show)
 
-indexEntryStats (IndexEntry _ _ cs ls) = FortuneStats
-    { numFortunes = Sum 1
+indexEntryStats (IndexEntry o n cs ls) = FortuneStats
+    { numFortunes = Sum 1, offsetAfter = Max (o + n)
     , minChars    = Min cs, maxChars    = Max cs
     , minLines    = Min ls, maxLines    = Max ls
     }
