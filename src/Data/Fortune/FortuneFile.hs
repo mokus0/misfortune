@@ -69,15 +69,15 @@ withFortuneFile f action = modifyMVar (fortuneFile f) $ \mbFile ->
             return (Just file, res)
 
 withIndex f action =
-        modifyMVar (fortuneIndex f) $ \mbIx ->
-            case mbIx of
-                Nothing -> do
-                    ix <- openIndex (fortuneIndexPath f) (fortuneWritable f)
-                    res <- action ix
-                    return (Just ix, res)
-                Just ix -> do
-                    res <- action ix
-                    return (Just ix, res)
+    modifyMVar (fortuneIndex f) $ \mbIx ->
+        case mbIx of
+            Nothing -> do
+                ix <- openIndex (fortuneIndexPath f) (fortuneWritable f)
+                res <- action ix
+                return (Just ix, res)
+            Just ix -> do
+                res <- action ix
+                return (Just ix, res)
 
 withFileAndIndex f action = withFortuneFile f (withIndex f . action)
 
