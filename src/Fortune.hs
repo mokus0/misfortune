@@ -3,6 +3,7 @@ module Main (main) where
 
 import Control.Applicative
 import Control.Monad
+import Data.Either
 import Data.Fortune
 import Data.Random hiding (Normal)
 import Data.Random.Distribution.Categorical
@@ -61,14 +62,42 @@ parseArgs = do
     fortuneFiles <- if null files
         then defaultFortuneFiles fortuneType
         else do
-            searchPath <- getFortuneSearchPath All
-            findFortuneFilesIn searchPath files
+            searchPath     <- getFortuneSearchPath fortuneType
+            fullSearchPath <- getFortuneSearchPath All
+            (missing, found) <- partitionEithers <$> mapM (resolve searchPath fullSearchPath) files
+            if null missing
+                then return (concat found)
+                else usage ["Fortune database not found: " ++ file | file <- missing]
+            
     
     return Args
         { equalProb = E `elem` opts
         , printDist = F `elem` opts
         , ..
         }
+
+-- find a fortune file... first check the given search path.
+-- If it's not there, check fullSearchPath.  Otherwise barf.
+-- 
+-- To see why we do this, consider these 2 cases:
+--  1)  User says @misfortune foo@.  foo is an "offensive" fortune file.
+--      We want the user to get what they asked for without needing "-o".
+--  2)  User says @misfortone bar@,  bar has both "normal" and 
+--      "offensive" fortune files.  We want the normal one but _NOT_ the
+--      offensive one, because the user didn't say "-o".
+resolve searchPath fullSearchPath file = do
+    files <- findFortuneFileIn searchPath file
+    if null files
+        then do
+            files <- if searchPath /= fullSearchPath
+                then findFortuneFileIn fullSearchPath file
+                else return []
+            
+            if null files
+                then return (Left file)
+                else return (Right files)
+            
+        else return (Right files)
 
 main = do
     args <- parseArgs
