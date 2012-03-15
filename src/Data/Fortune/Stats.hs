@@ -1,30 +1,31 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-module Data.Fortune.Stats where
+{-# LANGUAGE RecordWildCards #-}
+module Data.Fortune.Stats
+    ( FortuneStats(..)
+    , StatsProblem(..)
+    , checkStats
+    , statsAreValid
+    ) where
 
 import Data.Maybe
-import Data.Monoid
+import Data.Semigroup
 import Data.Typeable
 
 data FortuneStats = FortuneStats
-    { numFortunes   :: Int
-    , maxChars     :: Maybe Int
-    , minChars     :: Maybe Int
-    , maxLines     :: Maybe Int
-    , minLines     :: Maybe Int
+    { numFortunes   :: !(Sum Int)
+    , minChars      :: !(Min Int)
+    , maxChars      :: !(Max Int)
+    , minLines      :: !(Min Int)
+    , maxLines      :: !(Max Int)
     } deriving (Eq, Show)
 
+wrap (a, b, c, d, e) = FortuneStats a b c d e
+unwrap (FortuneStats a b c d e) = (a, b, c, d, e)
+
+instance Semigroup FortuneStats where
+    s1 <> s2 = wrap (unwrap s1 <> unwrap s2)
 instance Monoid FortuneStats where
-    mempty = FortuneStats 0 Nothing Nothing Nothing Nothing
-    mappend s1 s2 = FortuneStats
-        { numFortunes = numFortunes s1 + numFortunes s2
-        , maxChars   = f max (maxChars s1) (maxChars s2)
-        , minChars   = f min (minChars s1) (minChars s2)
-        , maxLines   = f max (maxLines s1) (maxLines s2)
-        , minLines   = f min (minLines s1) (minLines s2)
-        } where
-            f op Nothing y = y
-            f op x Nothing = x
-            f op (Just x) (Just y) = Just (op x y)
+    mempty = wrap mempty; mappend = (<>)
 
 data StatsProblem
     = NegativeCount Int
@@ -35,25 +36,25 @@ data StatsProblem
     | InconsistentLengthsForOneEntry
     deriving (Eq, Ord, Read, Show, Typeable)
 
-checkStats (FortuneStats n mxc mnc mxl mnl) = 
+checkStats FortuneStats{numFortunes = Sum n, ..} = 
     case n `compare` 0 of
         LT -> Just (NegativeCount n)
-        EQ -> if all isNothing [mxc, mnc, mxl, mnl]
+        EQ -> if all (mempty ==) [maxChars, maxLines]
+              && all (mempty ==) [minChars, minLines]
             then Nothing
             else Just LengthsWithoutEntries
-        GT -> getFirst $ mappend
-            (First $ checkLengths (mxc, mnc))
-            (First $ checkLengths (mxl, mnl))
+        GT -> getFirst 
+                $  First (checkLengths minChars maxChars) 
+                <> First (checkLengths minLines maxLines)
     
     where
-        checkLengths (Just mx, Just mn)
+        checkLengths (Min mn) (Max mx)
             | mx < 0    = Just (NegativeLength mx)
-            | mn < 0    = Just (NegativeLength mx)
+            | mn < 0    = Just (NegativeLength mn)
             | otherwise = case mx `compare` mn of
                 LT -> Just MaxLengthLessThanMinLength
                 EQ -> Nothing
                 GT  | n == 1    -> Just InconsistentLengthsForOneEntry
                     | otherwise -> Nothing
-        checkLengths _ = Just EntriesWithoutLengths
 
 statsAreValid = isNothing . checkStats

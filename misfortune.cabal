@@ -107,6 +107,7 @@ Library
                         directory,
                         filepath,
                         random-fu >= 0.2.2,
+                        semigroups,
                         text,
                         utf8-string,
                         vector

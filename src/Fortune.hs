@@ -156,8 +156,8 @@ checkThreshold t Long  s =      overThreshold t (maxChars s) (maxLines s)
 -- shortest one is not long
 checkThreshold t Short s = not (overThreshold t (minChars s) (minLines s))
 
-overThreshold (Chars n) c l = fromMaybe 0 c > n
-overThreshold (Lines n) c l = fromMaybe 0 l > n
+overThreshold (Chars n) c l = c > n
+overThreshold (Lines n) c l = l > n
 
 getDist :: Args -> [FortuneFile] -> IO (Categorical Float (FortuneFile, Int, RVar Int))
 getDist args files = equalize <$> case lengthRestriction args of

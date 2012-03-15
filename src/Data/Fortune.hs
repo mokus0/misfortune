@@ -1,7 +1,13 @@
 module Data.Fortune
      ( module Data.Fortune.FortuneFile
      , module Data.Fortune.Index
-     , module Data.Fortune.Stats
+     
+     , S.FortuneStats
+     , numFortunes
+     , minChars
+     , maxLines
+     , minLines
+     , maxChars
      
      , listFortuneFiles
      , findFortuneFile
@@ -35,7 +41,7 @@ module Data.Fortune
 
 import Data.Fortune.FortuneFile
 import Data.Fortune.Index
-import Data.Fortune.Stats
+import qualified Data.Fortune.Stats as S
 
 import Control.Applicative
 import Control.Exception
@@ -43,12 +49,20 @@ import Data.Function
 import Data.Maybe
 import Data.Random hiding (Normal)
 import Data.Random.Distribution.Categorical
+import Data.Semigroup hiding (All)
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import Paths_misfortune
 import System.Directory
 import System.Environment
 import System.FilePath
+
+numFortunes = getSum . S.numFortunes
+minChars    = getMin . S.minChars
+maxLines    = getMax . S.maxLines
+minLines    = getMin . S.minLines
+maxChars    = getMax . S.maxChars
+
 
 -- list the full paths of all visible items in the given directory
 listDir dir =

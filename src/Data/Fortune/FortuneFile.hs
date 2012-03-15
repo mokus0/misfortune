@@ -20,6 +20,7 @@ import qualified Data.ByteString.UTF8 as U
 import Data.Fortune.Index
 import Data.Fortune.Stats
 import Data.IORef
+import Data.Semigroup
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
@@ -204,4 +205,4 @@ getFortunes f = withFortuneFile f $ \file -> do
 
 getNumFortunes f = do
     ix <- getIndex f
-    numFortunes <$> getStats ix
+    getSum . numFortunes <$> getStats ix

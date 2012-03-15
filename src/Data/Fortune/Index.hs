@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- |Data structure, serialization, and file i/o for @strfile@-style index files
 -- 
@@ -13,10 +14,11 @@
 --         |      4 | word32be  | Version number (currently 2)
 --         |      8 | word32be  | Offset of string table in index file
 --         |     12 | word32be  | Number of entries in string table
---         |     16 | word32be  | Number of characters in longest string
---         |     20 | word32be  | Number of characters in shortest string
---         |     24 | word32be  | Number of lines in longest string
---         |     28 | word32be  | Number of lines in shortest string
+--         |     16 | word32be  | Maximum number of chars in a string
+--         |     20 | word32be  | Minimum number of chars in a string
+--         |     24 | word32be  | Maximum number of lines in a string
+--         |     28 | word32be  | Minimum number of lines in a string
+--         |     32 | 32 bytes  | reserved (set to 0 when not in use)
 -- ========|========| ==========|==============
 -- table   |     ?? | entry*    | Offset given in header.  Format given below.
 --
@@ -58,7 +60,7 @@ import qualified Data.ByteString as BS
 import Data.Foldable (foldMap)
 import Data.Fortune.Stats
 import Data.Maybe
-import Data.Monoid
+import Data.Semigroup
 import Data.Serialize
 import Data.Typeable
 import qualified Data.Vector as V
@@ -71,7 +73,8 @@ magic, currentVersion :: Word32
 magic = 0xbdcbcdb
 currentVersion = 2
 
-headerLength = 32 -- bytes
+headerLength = 64 -- bytes
+headerReservedLength = 32 -- bytes
 
 data Header = Header
     { stats     :: !FortuneStats
@@ -86,11 +89,8 @@ data HeaderProblem
     deriving (Eq, Ord, Read, Show, Typeable)
 
 checkHeader (Header stats loc)
-    = case checkStats stats of
-        Just problem -> Just (StatsProblem problem)
-        Nothing
-            | loc < headerLength    -> Just TableStartsBeforeHeaderEnds
-            | otherwise             -> Nothing
+    | loc < headerLength    = Just TableStartsBeforeHeaderEnds
+    | otherwise             = StatsProblem <$> checkStats stats
 
 knownVersions = [(currentVersion, getRestV2)]
 
@@ -103,33 +103,26 @@ getHeader = do
         Nothing      -> fail ("Unsupported index file format version: " ++ show version)
 
 getRestV2 = do
-    tblOffset  <- getWord32be
-    numStrings <- getWord32be
-    mxc        <- getWord32be
-    mnc        <- getWord32be
-    mxl        <- getWord32be
-    mnl        <- getWord32be
-    return Header
-        { stats     = FortuneStats
-            { numFortunes   = fromIntegral numStrings
-            , maxChars     = if numStrings == 0 then Nothing else Just (fromIntegral mxc)
-            , minChars     = if numStrings == 0 then Nothing else Just (fromIntegral mnc)
-            , maxLines     = if numStrings == 0 then Nothing else Just (fromIntegral mxl)
-            , minLines     = if numStrings == 0 then Nothing else Just (fromIntegral mnl)
-            }
-        , indexLoc = fromIntegral tblOffset
-        }
+    indexLoc    <-       fromIntegral <$> getWord32be
+    numFortunes <- Sum . fromIntegral <$> getWord32be
+    maxChars    <- Max . fromIntegral <$> getWord32be
+    minChars    <- Min . fromIntegral <$> getWord32be
+    maxLines    <- Max . fromIntegral <$> getWord32be
+    minLines    <- Min . fromIntegral <$> getWord32be
+    skip headerReservedLength
+    
+    return Header {stats = FortuneStats{..}, ..}
 
-putHeader (Header (FortuneStats numStrings mxc mnc mxl mnl) tblOffset) = do
+putHeader Header {stats = FortuneStats{..}, ..} = do
     putWord32be magic
     putWord32be currentVersion
-    putWord32be (fromIntegral tblOffset)
-    putWord32be (fromIntegral numStrings)
-    putWord32be (maybe 0 fromIntegral mxc)
-    putWord32be (maybe 0 fromIntegral mnc)
-    putWord32be (maybe 0 fromIntegral mxl)
-    putWord32be (maybe 0 fromIntegral mnl)
-    putWord64be 0
+    putWord32be (fromIntegral indexLoc)
+    putWord32be (fromIntegral (getSum numFortunes))
+    putWord32be (fromIntegral (getMax maxChars))
+    putWord32be (fromIntegral (getMin minChars))
+    putWord32be (fromIntegral (getMax maxLines))
+    putWord32be (fromIntegral (getMin minLines))
+    replicateM_ headerReservedLength (putWord8 0)
 
 data Index = Index !Handle !(MVar Header)
 
@@ -193,7 +186,7 @@ checkIndex_ file hdr =
         Nothing -> do
             let base = indexLoc hdr
                 count = numFortunes (stats hdr)
-                end = base + count * indexEntryLength
+                end = base + getSum count * indexEntryLength
             len <- hFileSize file
             return $! if len < toInteger end
                 then Just TableLongerThanFile
@@ -202,7 +195,7 @@ checkIndex_ file hdr =
 withIndex ix@(Index file hdrRef) action = withMVar hdrRef $ \hdr -> do
     let base = indexLoc hdr
         count = numFortunes (stats hdr) 
-    res <- action file base count
+    res <- action file base (getSum count)
     
     -- TODO: build flag to control paranoia level?
     checkIndex_ file hdr >>= maybe (return res) throwIO
@@ -229,7 +222,11 @@ data IndexEntry = IndexEntry
     , stringLines   :: Int
     } deriving (Eq, Ord, Show)
 
-indexEntryStats (IndexEntry _ _ cs ls) = FortuneStats 1 (Just cs) (Just cs) (Just ls) (Just ls)
+indexEntryStats (IndexEntry _ _ cs ls) = FortuneStats
+    { numFortunes = Sum 1
+    , minChars    = Min cs, maxChars    = Max cs
+    , minLines    = Min ls, maxLines    = Max ls
+    }
 
 putIndexEntry entry = do
     putWord32be (fromIntegral (stringOffset entry))
@@ -261,7 +258,7 @@ getEntry ix@(Index file hdrRef) i
 unfoldEntries ix getEntry = modifyHeader ix $ \file hdr -> do
         let base = indexLoc hdr
             count = numFortunes (stats hdr)
-            end = base + count * indexEntryLength
+            end = base + getSum count * indexEntryLength
             
             loop s = do
                 mbEntry <- getEntry
@@ -269,7 +266,7 @@ unfoldEntries ix getEntry = modifyHeader ix $ \file hdr -> do
                     Nothing -> return s
                     Just entry -> do
                         BS.hPut file (runPut (putIndexEntry entry))
-                        loop $! (s `mappend` indexEntryStats entry)
+                        loop $! (s <> indexEntryStats entry)
         
         hSeek file AbsoluteSeek (toInteger end)
         newStats <- loop (stats hdr)
@@ -281,12 +278,12 @@ appendEntries ix entries
     | otherwise         = modifyHeader ix $ \file hdr -> do
         let base = indexLoc hdr
             count = numFortunes (stats hdr)
-            end = base + count * indexEntryLength
+            end = base + getSum count * indexEntryLength
         
         hSeek file AbsoluteSeek (toInteger end)
         BS.hPut file (runPut (V.mapM_ putIndexEntry entries))
         
-        return hdr {stats = stats hdr `mappend` foldMap indexEntryStats entries}
+        return hdr {stats = stats hdr <> foldMap indexEntryStats entries}
 
 appendEntry ix = appendEntries ix . V.singleton
 
@@ -299,14 +296,14 @@ clearIndex ix = modifyHeader ix $ \file _ -> do
 rebuildStats ix = modifyHeader ix rebuildStats_
 
 rebuildStats_ file hdr = do
-    let n = numFortunes (stats hdr)
+    let n = getSum (numFortunes (stats hdr))
         chunk = 4096 `div` indexEntryLength
         loop i s
             | i >= n    = return s
             | otherwise = do
                 let m = min chunk (n - i)
                 entries <- runGetM (replicateM m getIndexEntry) =<< BS.hGet file (m * indexEntryLength)
-                loop (i + chunk) (s `mappend` foldMap indexEntryStats entries)
+                loop (i + chunk) (s <> foldMap indexEntryStats entries)
     
     hSeek file AbsoluteSeek (toInteger (indexLoc hdr))
     newStats <- loop 0 mempty
