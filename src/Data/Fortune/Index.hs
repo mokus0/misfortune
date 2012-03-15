@@ -13,9 +13,10 @@
 --         |      4 | word32be  | Version number (currently 2)
 --         |      8 | word32be  | Offset of string table in index file
 --         |     12 | word32be  | Number of entries in string table
---         |     16 | word32be  | Length of (number of characters in) longest string
---         |     20 | word32be  | Length of (number of characters in) shortest string
---         |     24 | 64 bits   | Reserved (currently must be zero)
+--         |     16 | word32be  | Number of characters in longest string
+--         |     20 | word32be  | Number of characters in shortest string
+--         |     24 | word32be  | Number of lines in longest string
+--         |     28 | word32be  | Number of lines in shortest string
 -- ========|========| ==========|==============
 -- table   |     ?? | entry*    | Offset given in header.  Format given below.
 --
@@ -39,6 +40,7 @@ module Data.Fortune.Index
      , checkIndex
      
      , IndexEntry(..)
+     , indexEntryStats
      , getEntries
      , getEntry
      , unfoldEntries
@@ -103,25 +105,30 @@ getHeader = do
 getRestV2 = do
     tblOffset  <- getWord32be
     numStrings <- getWord32be
-    longest    <- getWord32be
-    shortest   <- getWord32be
-    skip 8
+    mxc        <- getWord32be
+    mnc        <- getWord32be
+    mxl        <- getWord32be
+    mnl        <- getWord32be
     return Header
         { stats     = FortuneStats
             { numFortunes   = fromIntegral numStrings
-            , maxLength     = if numStrings == 0 then Nothing else Just (fromIntegral longest)
-            , minLength     = if numStrings == 0 then Nothing else Just (fromIntegral shortest)
+            , maxChars     = if numStrings == 0 then Nothing else Just (fromIntegral mxc)
+            , minChars     = if numStrings == 0 then Nothing else Just (fromIntegral mnc)
+            , maxLines     = if numStrings == 0 then Nothing else Just (fromIntegral mxl)
+            , minLines     = if numStrings == 0 then Nothing else Just (fromIntegral mnl)
             }
         , indexLoc = fromIntegral tblOffset
         }
 
-putHeader (Header (FortuneStats numStrings longest shortest) tblOffset) = do
+putHeader (Header (FortuneStats numStrings mxc mnc mxl mnl) tblOffset) = do
     putWord32be magic
     putWord32be currentVersion
     putWord32be (fromIntegral tblOffset)
     putWord32be (fromIntegral numStrings)
-    putWord32be (maybe 0 fromIntegral longest)
-    putWord32be (maybe 0 fromIntegral shortest)
+    putWord32be (maybe 0 fromIntegral mxc)
+    putWord32be (maybe 0 fromIntegral mnc)
+    putWord32be (maybe 0 fromIntegral mxl)
+    putWord32be (maybe 0 fromIntegral mnl)
     putWord64be 0
 
 data Index = Index !Handle !(MVar Header)
@@ -222,7 +229,7 @@ data IndexEntry = IndexEntry
     , stringLines   :: Int
     } deriving (Eq, Ord, Show)
 
-indexEntryStats (IndexEntry _ _ len _) = FortuneStats 1 (Just len) (Just len)
+indexEntryStats (IndexEntry _ _ cs ls) = FortuneStats 1 (Just cs) (Just cs) (Just ls) (Just ls)
 
 putIndexEntry entry = do
     putWord32be (fromIntegral (stringOffset entry))

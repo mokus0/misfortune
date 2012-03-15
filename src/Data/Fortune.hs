@@ -24,6 +24,13 @@ module Data.Fortune
      
      , withFortuneFile
      , withFortuneFiles
+     
+     , mapFortunesWithIndexM
+     , mapFortunesWithIndex
+     , mapFortunesM
+     , mapFortunes
+     , filterFortunesM
+     , filterFortunes
      ) where
 
 import Data.Fortune.FortuneFile
@@ -33,9 +40,11 @@ import Data.Fortune.Stats
 import Control.Applicative
 import Control.Exception
 import Data.Function
+import Data.Maybe
 import Data.Random hiding (Normal)
 import Data.Random.Distribution.Categorical
 import qualified Data.Text as T
+import qualified Data.Vector as V
 import Paths_misfortune
 import System.Directory
 import System.Environment
@@ -173,3 +182,19 @@ withFortuneFiles (p:ps) delim writeMode action =
     withFortuneFile  p  delim writeMode $ \p ->
         withFortuneFiles ps delim writeMode $ \ps ->
             action (p:ps)
+
+mapFortunesWithIndexM p f = 
+    mapM (uncurry p) . zip [0..] . V.toList =<< getEntries =<< getIndex f
+
+mapFortunesWithIndex p = mapFortunesWithIndexM (return . p)
+
+mapFortunesM p = mapFortunesWithIndexM (const p)
+mapFortunes  p = mapFortunesM (return . p)
+
+filterFortunesM p = fmap catMaybes . mapFortunesWithIndexM p'
+    where
+        p' i e = fmap (toMaybe i) (p e)
+        toMaybe i True  = Just i
+        toMaybe _ False = Nothing
+
+filterFortunes p = filterFortunesM (return . p)

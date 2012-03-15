@@ -138,7 +138,7 @@ enumFortuneLocs file delim = do
     prev     <- newIORef Nothing
     curBytes <- newIORef 0
     curChars <- newIORef 0
-    curLines <- newIORef 1
+    curLines <- newIORef 0
     
     nextChar <- enumUTF8 file
     
@@ -150,18 +150,19 @@ enumFortuneLocs file delim = do
             case (mbP, mbC) of
                 (Nothing, Nothing) -> return Nothing
                 (Just (_, p, pN),  Nothing)
-                     | p == '\n'    -> emit pN 1 1
-                     | otherwise    -> emit 0 0 0
+                     | p == '\n'    -> emit pN 1
+                     | otherwise    -> newline >> emit 0 0
                     
                 (Just (_, p, pN), Just (_, c, n))
                     | p == '\n' && c == delim -> do
                         mbN <- nextChar
                         case mbN of 
-                            Just (loc,'\n',n) -> emit pN 1 1 <* reset (loc + n)
+                            Just (loc,'\n',n) -> emit pN 1 <* reset (loc + n)
                             _ -> advance n
                 (_, Just (_, c, n)) -> do
-                    when (c == '\n') $ modifyIORef' curLines (1 +)
+                    when (c == '\n') newline
                     advance n
+        newline = modifyIORef' curLines (1 +)
         advance n = do
             modifyIORef' curBytes (n +)
             modifyIORef' curChars (1 +)
@@ -170,16 +171,16 @@ enumFortuneLocs file delim = do
             writeIORef curStart $! loc
             writeIORef curBytes 0
             writeIORef curChars 0
-            writeIORef curLines 1
+            writeIORef curLines 0
         -- the params are the amount to 'rewind' to cut off the final
         -- newline in a quote, if necessary
-        emit dB dC dL = do
+        emit dB dC = do
             start <- readIORef curStart
             bytes <- readIORef curBytes
             chars <- readIORef curChars
             ls    <- readIORef curLines
                                 
-            return (Just (IndexEntry start (bytes - dB) (chars - dC) (ls - 1)))
+            return (Just (IndexEntry start (bytes - dB) (chars - dC) ls))
     
     return nextFortune
 

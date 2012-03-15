@@ -5,13 +5,16 @@ import Control.Applicative
 import Control.Monad
 import Data.Either
 import Data.Fortune
+import Data.Maybe
 import Data.Random hiding (Normal)
 import Data.Random.Distribution.Categorical
+import qualified Data.Text as T
 import Data.Version
 import Paths_misfortune
 import System.Console.GetOpt
 import System.Environment
 import System.Exit
+import System.IO
 import Text.Printf
 
 versionString = "misfortune " ++ showVersion version
@@ -22,28 +25,47 @@ printVersion = do
 usage errors = do
     cmd <- getProgName
     
-    mapM_ putStr errors
-    when (not (null errors)) (putStrLn "")
+    let isErr = not (null errors)
+        out = if isErr then stderr else stdout
     
-    putStrLn versionString
-    putStr (usageInfo (cmd ++ " [options] [files]") flags)
+    mapM_ (hPutStr out) errors
+    when isErr (hPutStrLn out "")
     
-    exitWith (if null errors then ExitSuccess else ExitFailure 1)
+    hPutStrLn out versionString
+    hPutStr   out (usageInfo (cmd ++ " [options] [files]") flags)
+    
+    exitWith (if isErr then ExitFailure 1 else ExitSuccess)
 
-data Flag = A | E | F | O | H | V deriving Eq
+data Flag = A | E | F | L | S | LL Int | N Int | O | H | V deriving Eq
 
 flags = 
-    [ Option "a"  ["all"]       (NoArg A) "Use all fortune databases, even offensive ones"
-    , Option "e"  []            (NoArg E) "Select fortune file with equal probability for all"
-    , Option "f"  []            (NoArg F) "List the fortune files that would be searched"
-    , Option "o"  ["offensive"] (NoArg O) "Use only the potentially-offensive databases"
-    , Option "h?" ["help"]      (NoArg H) "Show this help message"
-    , Option ""   ["version"]   (NoArg V) "Print version info and exit"
-    ]
+    [ Option "a"  ["all"]       (NoArg A)       "Use all fortune databases, even offensive ones"
+    , Option "e"  []            (NoArg E)       "Select fortune file with equal probability for all"
+    , Option "f"  []            (NoArg F)       "List the fortune files that would be searched"
+    , Option "l"  ["long"]      (NoArg L)       "Print a long fortune"
+    , Option "L"  []            (ReqArg ll "n") "Consider fortunes with more than n lines to be \"long\""
+    , Option "n"  []            (ReqArg  n "n") "Consider fortunes with more than n chars to be \"long\""
+    , Option "s"  ["short"]     (NoArg S)       "Print a short fortune"
+    , Option "o"  ["offensive"] (NoArg O)       "Use only the potentially-offensive databases"
+    , Option "h?" ["help"]      (NoArg H)       "Show this help message"
+    , Option ""   ["version"]   (NoArg V)       "Print version info and exit"
+    ] where
+        rd x = case reads x of
+            (y, ""):_ -> y
+            _         -> error ("failed to parse command line option: " ++ show x)
+        ll = LL . rd
+        n  = N  . rd
+
+data Threshold = Chars Int | Lines Int
+defaultThreshold = Lines 2
+
+data Length = Short | Long
 
 data Args = Args
     { equalProb         :: Bool
     , printDist         :: Bool
+    , lengthRestriction :: Maybe Length
+    , threshold         :: Threshold
     , fortuneFiles      :: [FilePath]
     }
 
@@ -57,7 +79,11 @@ parseArgs = do
             | A `elem` opts = All
             | O `elem` opts = Offensive
             | otherwise     = Normal
-    
+        
+        lengthRestriction = listToMaybe (opts >>= f)
+            where f L = [Long]; f S = [Short]; f _ = []
+        threshold = fromMaybe defaultThreshold (listToMaybe (opts >>= f))
+            where f (LL n) = [Lines n]; f (N  n) = [Chars n]; f _ = []
     
     fortuneFiles <- if null files
         then defaultFortuneFiles fortuneType
@@ -68,7 +94,6 @@ parseArgs = do
             if null missing
                 then return (concat found)
                 else usage ["Fortune database not found: " ++ file | file <- missing]
-            
     
     return Args
         { equalProb = E `elem` opts
@@ -102,17 +127,62 @@ resolve searchPath fullSearchPath file = do
 main = do
     args <- parseArgs
     fortunes <- mapM (\f -> openFortuneFile f '%' False) (fortuneFiles args)
-    dist <- getDist args fortunes
+    fortunes <- filterFortuneFiles args fortunes
+    when (null fortunes) $ do
+        hPutStrLn stderr "No fortunes matched the length restriction"
+        exitWith (ExitFailure 2)
     
+    dist <- getDist args fortunes
     if printDist args
         then sequence_
             -- TODO: merge paths into a tree for nicer presentation
-            [ printf "%7.2f%%: %s\n" (100 * weight) (fortuneFilePath file)
-            | (weight, file) <- toList dist
+            [ printf "%5d %8s: %s\n" n pctStr (fortuneFilePath file)
+            | (weight, (file, n, _)) <- toList dist
+            , let pctStr = printf "(%.2f%%)" (100 * weight / totalWeight dist) :: String
             ]
-        else putStrLn =<< randomFortuneFromRandomFile (rvar dist)
+        else do
+            (file, _, fortuneDist) <- sample dist
+            fortune <- sample fortuneDist
+            -- putStrLn (fortuneFilePath file ++ " - " ++ show fortune)
+            putStrLn . T.unpack =<< getFortune file fortune
 
-getDist _ [] = fail "Internal error: it shouldn't be possible to reach this point without any fortunes selected"
-getDist args files
-    | equalProb args    = return ( fromWeightedList [ (1, f) | f <- files ])
-    | otherwise         = defaultFortuneDistribution files
+filterFortuneFiles args =
+    maybe return
+        (\r -> filterM (fmap (checkThreshold (threshold args) r) . getStats <=< getIndex))
+        (lengthRestriction args)
+
+-- longest one is long
+checkThreshold t Long  s =      overThreshold t (maxChars s) (maxLines s)
+-- shortest one is not long
+checkThreshold t Short s = not (overThreshold t (minChars s) (minLines s))
+
+overThreshold (Chars n) c l = fromMaybe 0 c > n
+overThreshold (Lines n) c l = fromMaybe 0 l > n
+
+getDist :: Args -> [FortuneFile] -> IO (Categorical Float (FortuneFile, Int, RVar Int))
+getDist args files = equalize <$> case lengthRestriction args of
+    Nothing -> fromWeightedList <$> sequence
+        [ do
+            n <- getNumFortunes f
+            return ( fromIntegral n
+                   , (f, n, uniform 0 (n-1))
+                   )
+        | f <- files
+        ]
+    Just r -> fromWeightedList <$> sequence
+    -- TODO: maybe keep a quantile table in the index and use that here
+    -- or maybe just try picking fortunes (rejecting those that don't meet the 
+    -- requirements) and use this method for "-f" and as a fall back after some
+    -- number of rejected fortunes
+        [ do
+            is <- filterFortunes (checkThreshold (threshold args) r . indexEntryStats) f
+            let n = length is
+            return ( fromIntegral n
+                   , (f, n, rvar (fromObservations is :: Categorical Float Int))
+                   )
+        | f <- files
+        ]
+    where 
+        equalize
+            | equalProb args = mapCategoricalPs (const 1)
+            | otherwise      = id

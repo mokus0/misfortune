@@ -106,7 +106,7 @@ Library
                         cereal,
                         directory,
                         filepath,
-                        random-fu,
+                        random-fu >= 0.2.2,
                         text,
                         utf8-string,
                         vector

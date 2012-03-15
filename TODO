@@ -2,3 +2,5 @@ general cleanup, docs, etc
 support reading fortune-mod strfiles (there's an implementation in the cruft/ dir, just needs to be integrated into the main code)
 support operating on fortunes with broken or missing index files (probably by creating an in-memory index)
 figure out what to do about attributions of quote databases...
+use MISFORTUNE_PATH for defaultFortuneFiles too
+more flexible length restriction options - probably flags to allow user to specify range of lengths of both lines and chars
