@@ -228,18 +228,18 @@ indexEntryStats (IndexEntry _ _ cs ls) = FortuneStats
     , minLines    = Min ls, maxLines    = Max ls
     }
 
-putIndexEntry entry = do
-    putWord32be (fromIntegral (stringOffset entry))
-    putWord32be (fromIntegral (stringBytes  entry))
-    putWord32be (fromIntegral (stringChars  entry))
-    putWord32be (fromIntegral (stringLines  entry))
+putIndexEntry IndexEntry{..} = do
+    putWord32be (fromIntegral stringOffset)
+    putWord32be (fromIntegral stringBytes)
+    putWord32be (fromIntegral stringChars)
+    putWord32be (fromIntegral stringLines)
 
 getIndexEntry = do
-    off <- fromIntegral <$> getWord32be
-    bs  <- fromIntegral <$> getWord32be
-    cs  <- fromIntegral <$> getWord32be
-    ls  <- fromIntegral <$> getWord32be
-    return (IndexEntry off bs cs ls)
+    stringOffset <- fromIntegral <$> getWord32be
+    stringBytes  <- fromIntegral <$> getWord32be
+    stringChars  <- fromIntegral <$> getWord32be
+    stringLines  <- fromIntegral <$> getWord32be
+    return IndexEntry{..}
 
 getEntries ix = withIndex ix $ \file base count -> do
     hSeek file AbsoluteSeek (toInteger base)
