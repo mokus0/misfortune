@@ -102,9 +102,6 @@ resolve searchPath fullSearchPath file = do
 main = do
     args <- parseArgs
     fortunes <- mapM (\f -> openFortuneFile f '%' False) (fortuneFiles args)
-    
-    when (null fortunes) (usage ["No fortunes specified"])
-    
     dist <- getDist args fortunes
     
     if printDist args
@@ -115,6 +112,7 @@ main = do
             ]
         else putStrLn =<< randomFortuneFromRandomFile (rvar dist)
 
+getDist _ [] = fail "Internal error: it shouldn't be possible to reach this point without any fortunes selected"
 getDist args files
     | equalProb args    = return ( fromWeightedList [ (1, f) | f <- files ])
     | otherwise         = defaultFortuneDistribution files
