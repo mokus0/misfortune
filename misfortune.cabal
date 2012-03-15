@@ -32,6 +32,7 @@ data-files:             normal/*.dat
                         normal/lambdabot/protontorpedo
                         normal/lambdabot/stewie
                         normal/*.dat
+                        offensive/*.dat
                         offensive/bash
                         offensive/lambdabot/*.dat
                         offensive/lambdabot/nixon
