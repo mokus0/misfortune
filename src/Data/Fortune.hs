@@ -27,6 +27,7 @@ module Data.Fortune
      , randomFortune
      , randomFortuneFromRandomFile
      , defaultFortuneDistribution
+     , fortuneDistributionWhere
      
      , withFortuneFile
      , withFortuneFiles
@@ -35,6 +36,9 @@ module Data.Fortune
      , mapFortunesWithIndex
      , mapFortunesM
      , mapFortunes
+     
+     , filterFortunesWithIndexM
+     , filterFortunesWithIndex
      , filterFortunesM
      , filterFortunes
      ) where
@@ -187,6 +191,19 @@ defaultFortuneDistribution fs = fromWeightedList <$> sequence
     | f <- fs
     ]
 
+-- |Events are (fortune file, distribution over matching fortune indices)
+fortuneDistributionWhere 
+    :: (FortuneFile -> Int -> IndexEntry -> IO Bool) 
+    -> [FortuneFile]
+    -> IO (Categorical Float (FortuneFile, Categorical Float Int))
+fortuneDistributionWhere p files =
+    fromWeightedList <$> sequence
+        [ do
+            is <- filterFortunesWithIndexM (p f) f
+            let iDist = fromObservations is
+            return (fromIntegral (numEvents iDist), (f, iDist))
+        | f <- files
+        ]
 withFortuneFile path delim writeMode = 
     bracket (openFortuneFile path delim writeMode)
              closeFortuneFile
@@ -205,10 +222,13 @@ mapFortunesWithIndex p = mapFortunesWithIndexM (return . p)
 mapFortunesM p = mapFortunesWithIndexM (const p)
 mapFortunes  p = mapFortunesM (return . p)
 
-filterFortunesM p = fmap catMaybes . mapFortunesWithIndexM p'
+filterFortunesWithIndexM p = fmap catMaybes . mapFortunesWithIndexM p'
     where
-        p' i e = fmap (toMaybe i) (p e)
+        p' i e = fmap (toMaybe i) (p i e)
         toMaybe i True  = Just i
         toMaybe _ False = Nothing
 
-filterFortunes p = filterFortunesM (return . p)
+filterFortunesWithIndex p = filterFortunesWithIndexM (\i e -> return $! p i e)
+
+filterFortunesM p = filterFortunesWithIndexM (const p)
+filterFortunes  p = filterFortunesWithIndex  (const p)

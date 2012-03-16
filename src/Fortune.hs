@@ -9,6 +9,7 @@ import Data.Maybe
 import Data.Random hiding (Normal)
 import Data.Random.Distribution.Categorical
 import qualified Data.Text as T
+import qualified Data.Traversable as T
 import Data.Version
 import Paths_misfortune
 import System.Console.GetOpt
@@ -161,27 +162,16 @@ overThreshold (Lines n) c l = l > n
 
 getDist :: Args -> [FortuneFile] -> IO (Categorical Float (FortuneFile, Int, RVar Int))
 getDist args files = equalize <$> case lengthRestriction args of
-    Nothing -> fromWeightedList <$> sequence
-        [ do
-            n <- getNumFortunes f
-            return ( fromIntegral n
-                   , (f, n, uniform 0 (n-1))
-                   )
-        | f <- files
-        ]
-    Just r -> fromWeightedList <$> sequence
-    -- TODO: maybe keep a quantile table in the index and use that here
-    -- or maybe just try picking fortunes (rejecting those that don't meet the 
-    -- requirements) and use this method for "-f" and as a fall back after some
-    -- number of rejected fortunes
-        [ do
-            is <- filterFortunes (checkThreshold (threshold args) r . indexEntryStats) f
-            let n = length is
-            return ( fromIntegral n
-                   , (f, n, rvar (fromObservations is :: Categorical Float Int))
-                   )
-        | f <- files
-        ]
+    Nothing -> do
+        dist <- defaultFortuneDistribution files
+        let f file = do
+                n <- getNumFortunes file
+                return (file, n, uniform 0 (n-1))
+        T.mapM f dist
+    Just r -> do
+        dist <- fortuneDistributionWhere (\_ _ -> return . checkThreshold (threshold args) r . indexEntryStats) files
+        let f (file, iDist) = (file, numEvents iDist, rvar iDist)
+        return (fmap f dist)
     where 
         equalize
             | equalProb args = mapCategoricalPs (const 1)
