@@ -116,6 +116,9 @@ Executable misfortune-strfile
   hs-source-dirs:       src
   ghc-options:          -fwarn-unused-binds -fwarn-unused-imports
   main-is:              StrFile.hs
+  build-depends:        monad-loops,
+                        regex-base,
+                        regex-pcre
 
 Executable misfortune
   hs-source-dirs:       src

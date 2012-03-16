@@ -3,6 +3,7 @@ module Main (main) where
 
 import Control.Applicative
 import Control.Monad
+import Control.Monad.Loops
 import Data.Either
 import Data.Fortune
 import Data.Maybe
@@ -17,6 +18,8 @@ import System.Environment
 import System.Exit
 import System.IO
 import Text.Printf
+import Text.Regex.Base
+import Text.Regex.PCRE
 
 versionString = "misfortune " ++ showVersion version
 printVersion = do
@@ -37,15 +40,17 @@ usage errors = do
     
     exitWith (if isErr then ExitFailure 1 else ExitSuccess)
 
-data Flag = A | E | F | L | S | LL Int | N Int | O | H | V deriving Eq
+data Flag = A | E | F | I | L  | M String | S | LL Int | N Int | O | H | V deriving Eq
 
 flags = 
     [ Option "a"  ["all"]       (NoArg A)       "Use all fortune databases, even offensive ones"
     , Option "e"  []            (NoArg E)       "Select fortune file with equal probability for all"
     , Option "f"  []            (NoArg F)       "List the fortune files that would be searched"
+    , Option "i"  []            (NoArg I)       "Match the pattern given by -m case-insensitively"
     , Option "l"  ["long"]      (NoArg L)       "Print a long fortune"
-    , Option "L"  []            (ReqArg ll "n") "Consider fortunes with more than n lines to be \"long\""
-    , Option "n"  []            (ReqArg  n "n") "Consider fortunes with more than n chars to be \"long\""
+    , Option "L"  []            (ReqArg ll num) "Consider fortunes with more than n lines to be \"long\""
+    , Option "m"  []            (ReqArg  M  rx) "Restrict fortunes to those matching <regex>"
+    , Option "n"  []            (ReqArg  n num) "Consider fortunes with more than n chars to be \"long\""
     , Option "s"  ["short"]     (NoArg S)       "Print a short fortune"
     , Option "o"  ["offensive"] (NoArg O)       "Use only the potentially-offensive databases"
     , Option "h?" ["help"]      (NoArg H)       "Show this help message"
@@ -56,18 +61,22 @@ flags =
             _         -> error ("failed to parse command line option: " ++ show x)
         ll = LL . rd
         n  = N  . rd
+        num = "<n>"; rx = "<regex>"
+        
 
 data Threshold = Chars Int | Lines Int
 defaultThreshold = Lines 2
 
 data Length = Short | Long
 
+type FortuneFilter = FortuneFile -> Int -> IndexEntry -> IO Bool
+
 data Args = Args
     { equalProb         :: Bool
     , printDist         :: Bool
-    , lengthRestriction :: Maybe Length
+    , fortuneFilters    :: [FortuneFilter]
     , threshold         :: Threshold
-    , fortuneFiles      :: [FilePath]
+    , fortuneFiles      :: [FortuneFile]
     }
 
 parseArgs = do
@@ -81,10 +90,20 @@ parseArgs = do
             | O `elem` opts = Offensive
             | otherwise     = Normal
         
-        lengthRestriction = listToMaybe (opts >>= f)
-            where f L = [Long]; f S = [Short]; f _ = []
         threshold = fromMaybe defaultThreshold (listToMaybe (opts >>= f))
             where f (LL n) = [Lines n]; f (N  n) = [Chars n]; f _ = []
+        
+        filterLength len _ _ e = return (checkThreshold threshold len (indexEntryStats e))
+        filterRegex   rx f i _ = matchTest rx . T.unpack <$> getFortune f i
+        
+        mkRegex :: String -> Regex
+        mkRegex = makeRegexOpts (compUTF8 + caseOpt) execBlank
+            where caseOpt = if I `elem` opts then compCaseless else 0
+        
+        mkFilter L      = Just (filterLength Long)
+        mkFilter S      = Just (filterLength Short)
+        mkFilter (M rx) = Just (filterRegex (mkRegex rx))
+        mkFilter _      = Nothing
     
     fortuneFiles <- if null files
         then defaultFortuneFiles fortuneType
@@ -96,11 +115,24 @@ parseArgs = do
                 then return (concat found)
                 else usage ["Fortune database not found: " ++ file | file <- missing]
     
+    -- open them all
+    fortuneFiles <- mapM (\f -> openFortuneFile f '%' False) fortuneFiles
+    
+    -- pre-filter files based on stats in the headers.  saves time filtering fortunes.
+    let lengthRestriction = listToMaybe (opts >>= f)
+            where f L = [Long]; f S = [Short]; f _ = []
+    fortuneFiles <- filterFortuneFiles threshold lengthRestriction fortuneFiles
+    
     return Args
         { equalProb = E `elem` opts
         , printDist = F `elem` opts
+        , fortuneFilters = catMaybes (map mkFilter opts)
         , ..
         }
+
+filterFortuneFiles threshold =
+    maybe return
+        (\r -> filterM (fmap (checkThreshold threshold r) . getStats <=< getIndex))
 
 -- find a fortune file... first check the given search path.
 -- If it's not there, check fullSearchPath.  Otherwise barf.
@@ -127,13 +159,14 @@ resolve searchPath fullSearchPath file = do
 
 main = do
     args <- parseArgs
-    fortunes <- mapM (\f -> openFortuneFile f '%' False) (fortuneFiles args)
-    fortunes <- filterFortuneFiles args fortunes
-    when (null fortunes) $ do
-        hPutStrLn stderr "No fortunes matched the length restriction"
-        exitWith (ExitFailure 2)
+    let fortunes = fortuneFiles args
     
     dist <- getDist args fortunes
+    
+    when (numEvents dist == 0) $ do
+        hPutStrLn stderr "No fortunes matched the filter criteria"
+        exitWith (ExitFailure 2)
+    
     if printDist args
         then sequence_
             -- TODO: merge paths into a tree for nicer presentation
@@ -147,11 +180,6 @@ main = do
             -- putStrLn (fortuneFilePath file ++ " - " ++ show fortune)
             putStrLn . T.unpack =<< getFortune file fortune
 
-filterFortuneFiles args =
-    maybe return
-        (\r -> filterM (fmap (checkThreshold (threshold args) r) . getStats <=< getIndex))
-        (lengthRestriction args)
-
 -- longest one is long
 checkThreshold t Long  s =      overThreshold t (maxChars s) (maxLines s)
 -- shortest one is not long
@@ -161,15 +189,15 @@ overThreshold (Chars n) c l = c > n
 overThreshold (Lines n) c l = l > n
 
 getDist :: Args -> [FortuneFile] -> IO (Categorical Float (FortuneFile, Int, RVar Int))
-getDist args files = equalize <$> case lengthRestriction args of
-    Nothing -> do
+getDist args files = equalize <$> case fortuneFilters args of
+    [] -> do
         dist <- defaultFortuneDistribution files
         let f file = do
                 n <- getNumFortunes file
                 return (file, n, uniform 0 (n-1))
         T.mapM f dist
-    Just r -> do
-        dist <- fortuneDistributionWhere (\_ _ -> return . checkThreshold (threshold args) r . indexEntryStats) files
+    filters -> do
+        dist <- fortuneDistributionWhere (\f i e -> andM [p f i e | p <- filters]) files
         let f (file, iDist) = (file, numEvents iDist, rvar iDist)
         return (fmap f dist)
     where 
