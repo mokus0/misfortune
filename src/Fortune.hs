@@ -6,6 +6,7 @@ import Control.Monad
 import Control.Monad.Loops
 import Data.Either
 import Data.Fortune
+import Data.List
 import Data.Maybe
 import Data.Random hiding (Normal)
 import Data.Random.Distribution.Categorical
@@ -26,6 +27,15 @@ printVersion = do
     putStrLn versionString
     exitWith ExitSuccess
 
+printPath fortuneType = do
+    path <- getFortuneSearchPath fortuneType
+    let sign False dir@('+':_)  = '-':dir
+        sign False dir          = dir
+        sign True  dir          = '+':dir
+    
+    putStrLn (intercalate ":" [ sign rec dir | (dir, rec) <- path])
+    exitWith ExitSuccess
+
 usage errors = do
     cmd <- getProgName
     
@@ -40,7 +50,7 @@ usage errors = do
     
     exitWith (if isErr then ExitFailure 1 else ExitSuccess)
 
-data Flag = A | E | F | I | L  | M String | S | LL Int | N Int | O | H | V deriving Eq
+data Flag = A | E | F | I | L  | M String | S | LL Int | N Int | O | Path | H | V deriving Eq
 
 flags = 
     [ Option "a"  ["all"]       (NoArg A)       "Use all fortune databases, even offensive ones"
@@ -55,6 +65,7 @@ flags =
     , Option "o"  ["offensive"] (NoArg O)       "Use only the potentially-offensive databases"
     , Option "h?" ["help"]      (NoArg H)       "Show this help message"
     , Option ""   ["version"]   (NoArg V)       "Print version info and exit"
+    , Option ""   ["path"]      (NoArg Path)    "Print the effective search path and exit"
     ] where
         rd x = case reads x of
             (y, ""):_ -> y
@@ -89,8 +100,10 @@ parseArgs = do
             | A `elem` opts = All
             | O `elem` opts = Offensive
             | otherwise     = Normal
-        
-        threshold = fromMaybe defaultThreshold (listToMaybe (opts >>= f))
+    
+    when (Path `elem` opts) (printPath fortuneType)
+    
+    let threshold = fromMaybe defaultThreshold (listToMaybe (opts >>= f))
             where f (LL n) = [Lines n]; f (N  n) = [Chars n]; f _ = []
         
         filterLength len _ _ e = return (checkThreshold threshold len (indexEntryStats e))
