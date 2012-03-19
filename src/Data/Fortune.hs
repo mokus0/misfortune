@@ -10,6 +10,8 @@ module Data.Fortune
      , maxChars
      
      , listFortuneFiles
+     , listFortuneFilesIn
+     
      , findFortuneFile
      , findFortuneFileIn
      , findFortuneFilesIn
@@ -49,11 +51,14 @@ import qualified Data.Fortune.Stats as S
 
 import Control.Applicative
 import Control.Exception
+import Control.Monad
+import Data.Char
 import Data.Function
 import Data.Maybe
+import Data.Monoid (First(..))
 import Data.Random hiding (Normal)
 import Data.Random.Distribution.Categorical
-import Data.Semigroup hiding (All)
+import Data.Semigroup hiding (All, First(..))
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import Paths_misfortune
@@ -96,6 +101,8 @@ listFortuneFiles rec = traverseDir rec onFile
                 hasIndex <- doesIndexFileExist path
                 return [path | hasIndex ]
 
+listFortuneFilesIn = fmap concat . mapM (uncurry (flip listFortuneFiles))
+
 findFortuneFile rec dir file = liftA2 (++) checkHere (search dir)
     where 
         checkHere
@@ -133,7 +140,7 @@ getFortuneDir fortuneType = do
         Offensive   -> dir </> "offensive"
 
 defaultFortuneFiles fortuneType = 
-    getFortuneDir fortuneType >>= listFortuneFiles True
+    getFortuneSearchPath fortuneType >>= listFortuneFilesIn
 
 defaultFortuneFileNames fType = map takeFileName <$> defaultFortuneFiles fType
 
@@ -141,11 +148,16 @@ defaultFortuneSearchPath fortuneType = do
     dir <- getFortuneDir fortuneType
     return [(".", False), (dir, True)]
 
-getEnv' key = lookup key <$> getEnvironment
+getEnv' typeStr key = do
+    env <- getEnvironment
+    let lookup' k = First . lookup k
+    return $ getFirst (lookup' (key ++ "_" ++ typeStr) env
+                    <> lookup' key env)
 getFortuneSearchPath defaultType
-    = getEnv' "MISFORTUNE_PATH"
+    = getEnv' (map toUpper $ show defaultType) "MISFORTUNE_PATH"
     >>= maybe (defaultFortuneSearchPath defaultType)
               (return . map f . split)
+    >>= filterM (doesDirectoryExist . fst)
     where
         -- entries with a '+' will be searched recursively
         -- paths that actually start with a '+', such as "+foo",
