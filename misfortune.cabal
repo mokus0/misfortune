@@ -111,6 +111,7 @@ Library
                         cereal,
                         directory,
                         filepath,
+                        knob,
                         random-fu >= 0.2.2,
                         semigroups,
                         text,

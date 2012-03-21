@@ -34,6 +34,7 @@
 module Data.Fortune.Index
      ( Index
      , openIndex
+     , createVirtualIndex
      , closeIndex
      , getStats
      
@@ -60,6 +61,7 @@ import Control.Monad
 import qualified Data.ByteString as BS
 import Data.Foldable (foldMap)
 import Data.Fortune.Stats
+import Data.Knob
 import Data.Maybe
 import Data.Semigroup
 import Data.Serialize
@@ -139,6 +141,18 @@ data Index = Index !Handle !(MVar Header)
 openIndex :: FilePath -> Bool -> IO Index
 openIndex path writeMode = do
     file <- openFile path (if writeMode then ReadWriteMode else ReadMode)
+    openIndex' file writeMode
+
+-- |Create an in-memory index - useful for working with files when, for whatever reason,
+-- you cannot create a valid index.
+createVirtualIndex :: IO Index
+createVirtualIndex = do
+    knob <- newKnob BS.empty
+    file <- newFileHandle knob "<createVirtualIndex>" ReadWriteMode
+    openIndex' file True
+
+openIndex' :: Handle -> Bool -> IO Index
+openIndex' file writeMode = do
     hSetBinaryMode file True
     hSetBuffering file NoBuffering
     

@@ -15,8 +15,10 @@ import qualified Data.Traversable as T
 import Data.Version
 import Paths_misfortune
 import System.Console.GetOpt
+import System.Directory
 import System.Environment
 import System.Exit
+import System.FilePath
 import System.IO
 import Text.Printf
 import Text.Regex.Base
@@ -147,28 +149,38 @@ filterFortuneFiles threshold =
     maybe return
         (\r -> filterM (fmap (checkThreshold threshold r) . getStats <=< getIndex))
 
--- find a fortune file... first check the given search path.
--- If it's not there, check fullSearchPath.  Otherwise barf.
+-- find a fortune file... 2 main cases:
+-- 1) the path is a simple name (contains no /'s):
+--      first check the given search path.
+--      If it's not there, check fullSearchPath.  Otherwise barf.
 -- 
--- To see why we do this, consider these 2 cases:
---  1)  User says @misfortune foo@.  foo is an "offensive" fortune file.
---      We want the user to get what they asked for without needing "-o".
---  2)  User says @misfortone bar@,  bar has both "normal" and 
---      "offensive" fortune files.  We want the normal one but _NOT_ the
---      offensive one, because the user didn't say "-o".
-resolve searchPath fullSearchPath file = do
-    files <- findFortuneFileIn searchPath file
-    if null files
-        then do
-            files <- if searchPath /= fullSearchPath
-                then findFortuneFileIn fullSearchPath file
-                else return []
-            
-            if null files
-                then return (Left file)
-                else return (Right files)
-            
-        else return (Right files)
+--      To see why we do this, consider these 2 cases:
+--       1)  User says @misfortune foo@.  foo is an "offensive" fortune file.
+--           We want the user to get what they asked for without needing "-o".
+--       2)  User says @misfortone bar@,  bar has both "normal" and 
+--           "offensive" fortune files.  We want the normal one but _NOT_ the
+--           offensive one, because the user didn't say "-o".
+-- 2) the path is not a simple name (contains at least one /):
+--      Just check for the file.
+resolve searchPath fullSearchPath file = case splitPath file of
+    [_] -> do
+        files <- findFortuneFileIn searchPath file
+        if null files
+            then do
+                files <- if searchPath /= fullSearchPath
+                    then findFortuneFileIn fullSearchPath file
+                    else return []
+                
+                if null files
+                    then return (Left file)
+                    else return (Right files)
+                
+            else return (Right files)
+    _ -> do
+        exists <- doesFileExist file
+        if exists
+            then return (Right [file])
+            else return (Left file)
 
 main = do
     args <- parseArgs

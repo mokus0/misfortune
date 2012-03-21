@@ -1,4 +1,9 @@
 figure out what to do about attributions of quote databases...
+%
 support reading fortune-mod strfiles (there's an implementation in the cruft/ dir, just needs to be integrated into the main code)
-support operating on fortunes with broken or missing index files (probably by creating an in-memory index)
+%
 more flexible length restriction options - probably flags to allow user to specify range of lengths of both lines and chars
+%
+rebuild broken index when opening a fortune file in write mode (?)
+%
+change extension so it doesn't conflict with fortune-mod, so files can be indexed for use by both at same time.  Maybe ".ix"?

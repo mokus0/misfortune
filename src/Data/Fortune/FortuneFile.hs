@@ -15,6 +15,7 @@ module Data.Fortune.FortuneFile
 
 import Control.Applicative
 import Control.Concurrent
+import Control.Exception
 import Control.Monad
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.UTF8 as U
@@ -89,12 +90,27 @@ withIndex f action =
     modifyMVar (fortuneIndex f) $ \mbIx ->
         case mbIx of
             Nothing -> do
-                ix <- openIndex (fortuneIndexPath f) (fortuneWritable f)
+                let path      = fortuneIndexPath f
+                    writeMode = fortuneWritable  f
+                    -- if read-only, create an in-memory index if the real one exists but can't be opened
+                    -- (Don't do that for read-write mode, because the writes would silently be dropped)
+                    -- If building the in-memory one fails, re-throw the original exception; it's more
+                    -- informative because it tells why the index couldn't be opened in the first place.
+                    onExc e = if writeMode
+                        then throwIO (e :: SomeException)
+                        else handle (rethrow e) $ do
+                            ix <- createVirtualIndex
+                            withFortuneFile f (\file -> rebuildIndex' (fortuneDelim f) file ix)
+                            return ix
+                    rethrow e other = throwIO (e `asTypeOf` other)
+                
+                ix <- handle onExc (openIndex path writeMode)
                 res <- action ix
                 return (Just ix, res)
             Just ix -> do
                 res <- action ix
                 return (Just ix, res)
+
 
 withFileAndIndex f action = withFortuneFile f (withIndex f . action)
 
@@ -105,11 +121,13 @@ getIndex fortunes = withIndex fortunes return
 -- |Clear a 'FortuneFile's 'Index' and rebuild it from the contents 
 -- of the text file.
 rebuildIndex :: FortuneFile -> IO ()
-rebuildIndex f = withFileAndIndex f $ \file ix -> do
+rebuildIndex f = withFileAndIndex f (rebuildIndex' (fortuneDelim f))
+
+rebuildIndex' delim file ix = do
     clearIndex ix
     hSeek file AbsoluteSeek 0
     
-    getEntry <- enumFortuneLocs file (fortuneDelim f)
+    getEntry <- enumFortuneLocs file delim
     unfoldEntries ix getEntry
 
 -- |scan an open handle for UTF8 chars.  For each one found, returns the byte

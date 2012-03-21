@@ -101,25 +101,14 @@ traverseDir rec onFile = fix $ \search dir ->
                 else onFile path
      in concat <$> (mapM onItem =<< listDir dir)
 
-doesFortuneFileExist path = liftA2 (&&)
-    (doesFileExist path)
-    (doesIndexFileExist path)
-
-doesIndexFileExist path = doesFileExist (path <.> "dat")
-
 -- |List all the fortune files in a directory.  The 'Bool' value
 -- specifies whether to search subtrees as well.
 --
--- Any file which does not have \".dat\" extension AND for which 
--- there exists a corresponding \"file.dat\" will be reported as a
--- fortune file.
+-- Any file which does not have \".dat\" extension will be reported
+-- as a fortune file.
 listFortuneFiles :: Bool -> FilePath -> IO [FilePath]
 listFortuneFiles rec = traverseDir rec onFile
-    where onFile path
-            | takeExtension path == ".dat"  = return []
-            | otherwise = do
-                hasIndex <- doesIndexFileExist path
-                return [path | hasIndex ]
+    where onFile path = return [ path | takeExtension path /= ".dat" ]
 
 -- |List all the fortune files in several directories.  Each directory
 -- will be searched by 'listFortuneFiles' (using the corresponding 'Bool' 
@@ -131,22 +120,10 @@ listFortuneFilesIn = fmap concat . mapM (uncurry (flip listFortuneFiles))
 -- |Like 'listFortuneFiles' except only returning paths with the 
 -- specified file name.
 findFortuneFile :: Bool -> FilePath -> String -> IO [FilePath]
-findFortuneFile rec dir file = liftA2 (++) checkHere (search dir)
+findFortuneFile rec dir file = search dir
     where 
-        checkHere
-            | dir /= "."    = return []
-            | otherwise     = case splitPath file of
-                [_] -> return [] -- search will find it
-                _   -> do
-                    exists <- doesFortuneFileExist file
-                    return [file | exists]
-        
         search = traverseDir rec onFile
-        onFile path 
-            | takeFileName path /= file = return []
-            | otherwise = do
-                hasIndex <- doesIndexFileExist path
-                return [ path | hasIndex ]
+        onFile path = return [ path | takeFileName path == file ]
 
 -- |Like 'listFortuneFilesIn' except only returning paths with the 
 -- specified file name.
@@ -185,7 +162,7 @@ defaultFortuneFiles fortuneType =
 defaultFortuneSearchPath :: FortuneType -> IO [(FilePath, Bool)]
 defaultFortuneSearchPath fortuneType = do
     dir <- getFortuneDir fortuneType
-    return [(".", False), (dir, True)]
+    return [(dir, True)]
 
 getEnv' typeStr key = do
     env <- getEnvironment
