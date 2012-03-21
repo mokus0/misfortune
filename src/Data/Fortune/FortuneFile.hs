@@ -1,10 +1,10 @@
 {-# LANGUAGE BangPatterns #-}
 module Data.Fortune.FortuneFile
      ( FortuneFile
-     , openFortuneFile
-     , closeFortuneFile
      , fortuneFilePath
      , fortuneIndexPath
+     , openFortuneFile
+     , closeFortuneFile
      , getIndex
      , rebuildIndex
      , getFortune
@@ -30,6 +30,7 @@ import System.Directory
 import System.FilePath
 import System.IO
 
+-- |A handle to an open fortune database.
 data FortuneFile = FortuneFile 
     { fortunePath       :: !FilePath
     , fortuneDelim      :: !Char
@@ -38,9 +39,19 @@ data FortuneFile = FortuneFile
     , fortuneIndex      :: !(MVar (Maybe Index))
     }
 
+-- |Get the path of the text part of an open fortune database.
+fortuneFilePath :: FortuneFile -> FilePath
 fortuneFilePath = fortunePath
+
+-- |Get the path of the index part of an open fortune database.
+fortuneIndexPath :: FortuneFile -> FilePath
 fortuneIndexPath f = fortunePath f <.> "dat"
 
+-- |@openFortuneFile path delim writeMode@: Open a fortune file at @path@,
+-- using @delim@ as the character between strings, allowing writing if
+-- @writeMode@ is set.  If no file exists at the specified path, an error
+-- will be thrown or the file will be created, depending on @writeMode@.
+openFortuneFile :: FilePath -> Char -> Bool -> IO FortuneFile
 openFortuneFile path delim writeMode = do
     exists <- doesFileExist path
     when (not (exists || writeMode))
@@ -56,6 +67,10 @@ openFortuneFile path delim writeMode = do
         , fortuneIndex      = ixRef
         }
 
+-- |Close a fortune file. Subsequent accesses can re-open the file.
+-- 
+-- TODO: Fix the semantics of this function, it's actually even weirder that that.
+closeFortuneFile :: FortuneFile -> IO ()
 closeFortuneFile f = do
     maybe (return ()) closeIndex =<< readMVar (fortuneIndex f)
     maybe (return ()) hClose     =<< readMVar (fortuneFile  f)
@@ -83,8 +98,13 @@ withIndex f action =
 
 withFileAndIndex f action = withFortuneFile f (withIndex f . action)
 
+-- |Get the 'Index' of a 'FortuneFile', opening it if necessary.
+getIndex :: FortuneFile -> IO Index
 getIndex fortunes = withIndex fortunes return
 
+-- |Clear a 'FortuneFile's 'Index' and rebuild it from the contents 
+-- of the text file.
+rebuildIndex :: FortuneFile -> IO ()
 rebuildIndex f = withFileAndIndex f $ \file ix -> do
     clearIndex ix
     hSeek file AbsoluteSeek 0
@@ -92,7 +112,7 @@ rebuildIndex f = withFileAndIndex f $ \file ix -> do
     getEntry <- enumFortuneLocs file (fortuneDelim f)
     unfoldEntries ix getEntry
 
--- scan an open handle for UTF8 chars.  For each one found, returns the byte
+-- |scan an open handle for UTF8 chars.  For each one found, returns the byte
 -- location, the char, and the byte width of the char.
 -- WARNING: seeks through file.  Do not perform any other IO on the same file until the returned thingy says "Nothing".
 enumUTF8 :: Handle -> IO (IO (Maybe (Int, Char, Int)))
@@ -195,20 +215,33 @@ getByIndex file (IndexEntry loc len _ _) = do
     hSeek file AbsoluteSeek (toInteger loc)
     BS.hGet file len
 
+-- |@getFortune f i@ retrieves the text of the @i@'th fortune
+-- (according to the order in the index file) in the 'FortuneFile' @f@.
+getFortune :: FortuneFile -> Int -> IO T.Text
 getFortune f i = do
     ix <- getIndex f
     entry <- getEntry ix i
     T.decodeUtf8With T.lenientDecode <$> 
         withFortuneFile f (flip getByIndex entry)
 
+-- |Get the text of every fortune in a fortune file,
+-- in the order they occur in the file.  Ignores the index
+-- entirely.
+getFortunes :: FortuneFile -> IO [T.Text]
 getFortunes f = withFortuneFile f $ \file -> do
     hSeek file AbsoluteSeek 0
     T.splitOn (T.pack ['\n', fortuneDelim f, '\n']) <$> T.hGetContents file
 
+-- |Get the number of fortunes in a fortune file, as recorded
+-- in the index.
+getNumFortunes :: FortuneFile -> IO Int
 getNumFortunes f = do
     ix <- getIndex f
     getSum . numFortunes <$> getStats ix
 
+-- |Append a fortune to a fortune file, inserting a delimiter if
+-- needed and updating the index.
+appendFortune :: FortuneFile -> T.Text -> IO ()
 appendFortune f fortune = do
     -- TODO: detect whether a reindex is actually needed
     rebuildIndex f

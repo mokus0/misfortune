@@ -84,8 +84,11 @@ data Header = Header
 
 emptyHeader = Header mempty headerLength
 
+-- |An exception type indicating things that can be wrong about an index file's header.
 data HeaderProblem
-    = StatsProblem StatsProblem
+    = BadMagicNumber !Word32
+    | UnsupportedVersion !Word32
+    | StatsProblem !StatsProblem
     | TableStartsBeforeHeaderEnds
     deriving (Eq, Ord, Read, Show, Typeable)
 
@@ -97,11 +100,11 @@ knownVersions = [(currentVersion, getRestV2)]
 
 getHeader = do
     n <- getWord32be
-    when (n /= magic) $ fail "Expected magic number 0x0bdcbcdb at start of index file"
+    when (n /= magic) $ throw (BadMagicNumber n)
     version <- getWord32be
     case lookup version knownVersions of
         Just getRest -> getRest
-        Nothing      -> fail ("Unsupported index file format version: " ++ show version)
+        Nothing      -> throw (UnsupportedVersion version)
 
 getRestV2 = do
     indexLoc    <-       fromIntegral <$> getWord32be
@@ -127,8 +130,13 @@ putHeader Header {stats = FortuneStats{..}, ..} = do
     putWord32be (fromIntegral (getMax offsetAfter))
     replicateM_ headerReservedLength (putWord8 0)
 
+-- |A handle to an open fortune index file.
 data Index = Index !Handle !(MVar Header)
 
+-- |@openIndex path writeMode@: Opens the index file at @path@.  The 'Index' will
+-- be writable if @writeMode@ is 'True'.  If there is no index file at that path, 
+-- an error will be thrown or the index will be created, depending on @writeMode@.
+openIndex :: FilePath -> Bool -> IO Index
 openIndex path writeMode = do
     file <- openFile path (if writeMode then ReadWriteMode else ReadMode)
     hSetBinaryMode file True
@@ -154,11 +162,18 @@ openIndex path writeMode = do
             hdrRef <- newMVar hdr
             return (Index file hdrRef)
 
-closeIndex (Index file _) = hClose file
+-- |Close an index file.  Subsequent accesses will fail.
+closeIndex :: Index -> IO ()
+closeIndex (Index file mv) = do
+    hClose file
+    takeMVar mv
+    putMVar mv (throw AccessToClosedIndex)
 
+-- |Errors that can be thrown indicating a problem with an index file.
 data IndexProblem
-    = HeaderProblem HeaderProblem
+    = HeaderProblem !HeaderProblem
     | TableLongerThanFile
+    | AccessToClosedIndex
     deriving (Eq, Ord, Read, Show, Typeable)
 
 -- These instances allow any 'problem' to be caught as an instance of any other,
@@ -180,7 +195,11 @@ instance Exception IndexProblem where
         , HeaderProblem <$> fromException se
         ]
 
-checkIndex (Index file hdrRef) = withMVar hdrRef (checkIndex_ file)
+-- |Force a consistency check on an index file.
+checkIndex :: Index -> IO (Maybe IndexProblem)
+checkIndex (Index file hdrRef) = do
+    foo <- try (withMVar hdrRef (checkIndex_ file))
+    return (either Just id foo)
 
 -- TODO: also random spot-check for validity of table entries (mostly that they are consistent with the stats).
 checkIndex_ file hdr =
@@ -214,17 +233,28 @@ modifyHeader (Index file hdrRef) action = modifyMVar_ hdrRef $ \hdr -> do
     -- TODO: build flag to control paranoia level?
     checkIndex_ file newHdr >>= maybe (return newHdr) throwIO
 
+-- |Get some cached stats about the fortunes indexed in this file.
+getStats :: Index -> IO FortuneStats
 getStats (Index _ hdrRef) = stats <$> readMVar hdrRef
 
 indexEntryLength = 16 -- bytes
 
+-- |Conceptually, an 'Index' file is just a header containing 'FortuneStats' and an array of these entries.
+-- An 'IndexEntry' stores the information needed to locate one string in the fortune fiel, as well as some
+-- basic stats about that one file (from which the 'FortuneStats' will be derived).
 data IndexEntry = IndexEntry
     { stringOffset  :: !Int
+        -- ^ The location of the string in the file, as a byte offset
     , stringBytes   :: !Int
+        -- ^ The number of bytes the string occupies.
     , stringChars   :: !Int
+        -- ^ The number of characters in the string.
     , stringLines   :: !Int
+        -- ^ The number of lines in the string.
     } deriving (Eq, Ord, Show)
 
+-- |Convert one index entry to a 'FortuneStats' record describing it.
+indexEntryStats :: IndexEntry -> FortuneStats
 indexEntryStats (IndexEntry o n cs ls) = FortuneStats
     { numFortunes = Sum 1, offsetAfter = Max (o + n)
     , minChars    = Min cs, maxChars    = Max cs
@@ -244,11 +274,15 @@ getIndexEntry = do
     stringLines  <- fromIntegral <$> getWord32be
     return IndexEntry{..}
 
+-- |Read all the entries in an 'Index'
+getEntries :: Index -> IO (V.Vector IndexEntry)
 getEntries ix = withIndex ix $ \file base count -> do
     hSeek file AbsoluteSeek (toInteger base)
     buf <- BS.hGet file (count * indexEntryLength)
     runGetM (V.replicateM count getIndexEntry) buf
 
+-- |Read a specified entry from an 'Index'.
+getEntry :: Index -> Int -> IO IndexEntry
 getEntry ix@(Index file hdrRef) i
     | i < 0     = rangeErr
     | otherwise = withIndex ix $ \file base count -> do
@@ -258,6 +292,9 @@ getEntry ix@(Index file hdrRef) i
         BS.hGet file indexEntryLength >>= runGetM getIndexEntry
     where rangeErr = fail ("getEntry: index out of range: " ++ show i)
 
+-- |Repeatedly invoke a generator for index entries until it returns 'Nothing',
+-- appending all entries returned to the index file.
+unfoldEntries :: Index -> IO (Maybe IndexEntry) -> IO ()
 unfoldEntries ix getEntry = modifyHeader ix $ \file hdr -> do
         let base = indexLoc hdr
             count = numFortunes (stats hdr)
@@ -276,6 +313,8 @@ unfoldEntries ix getEntry = modifyHeader ix $ \file hdr -> do
         
         return hdr {stats = newStats}
 
+-- |Append all the given entries to the 'Index' file.
+appendEntries :: Index -> V.Vector IndexEntry -> IO ()
 appendEntries ix entries
     | V.null entries    = return ()
     | otherwise         = modifyHeader ix $ \file hdr -> do
@@ -288,14 +327,19 @@ appendEntries ix entries
         
         return hdr {stats = stats hdr <> foldMap indexEntryStats entries}
 
+-- |Append a single 'IndexEntry' to an 'Index' file.
+appendEntry :: Index -> IndexEntry -> IO ()
 appendEntry ix = appendEntries ix . V.singleton
 
+-- |Delete all entries from an 'Index'.
+clearIndex :: Index -> IO ()
 clearIndex ix = modifyHeader ix $ \file _ -> do
     hSetFileSize file (toInteger headerLength)
     return emptyHeader
 
--- all the operations above should preserve correctness of stats, but just in case...
--- you can fix the stats with this procedure.
+-- |All the operations here should preserve correctness of stats, but just in case...
+-- This procedure forces the stats to be recomputed.
+rebuildStats :: Index -> IO ()
 rebuildStats ix = modifyHeader ix rebuildStats_
 
 rebuildStats_ file hdr = do

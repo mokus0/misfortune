@@ -19,7 +19,6 @@ module Data.Fortune
      , FortuneType(..)
      , getFortuneDir
      , defaultFortuneFiles
-     , defaultFortuneFileNames
      
      , defaultFortuneSearchPath
      , getFortuneSearchPath
@@ -66,10 +65,24 @@ import System.Directory
 import System.Environment
 import System.FilePath
 
+-- |The number of fortune strings in the index
+numFortunes :: S.FortuneStats -> Int
 numFortunes = getSum . S.numFortunes
+
+-- |The smallest number of characters in any string in the index
+minChars :: S.FortuneStats -> Int
 minChars    = getMin . S.minChars
+
+-- |The greatest number of characters in any string in the index
+maxLines :: S.FortuneStats -> Int
 maxLines    = getMax . S.maxLines
+
+-- |The smallest number of lines in any string in the index
+minLines :: S.FortuneStats -> Int
 minLines    = getMin . S.minLines
+
+-- |The greatest number of lines in any string in the index
+maxChars :: S.FortuneStats -> Int
 maxChars    = getMax . S.maxChars
 
 
@@ -94,6 +107,13 @@ doesFortuneFileExist path = liftA2 (&&)
 
 doesIndexFileExist path = doesFileExist (path <.> "dat")
 
+-- |List all the fortune files in a directory.  The 'Bool' value
+-- specifies whether to search subtrees as well.
+--
+-- Any file which does not have \".dat\" extension AND for which 
+-- there exists a corresponding \"file.dat\" will be reported as a
+-- fortune file.
+listFortuneFiles :: Bool -> FilePath -> IO [FilePath]
 listFortuneFiles rec = traverseDir rec onFile
     where onFile path
             | takeExtension path == ".dat"  = return []
@@ -101,8 +121,16 @@ listFortuneFiles rec = traverseDir rec onFile
                 hasIndex <- doesIndexFileExist path
                 return [path | hasIndex ]
 
+-- |List all the fortune files in several directories.  Each directory
+-- will be searched by 'listFortuneFiles' (using the corresponding 'Bool' 
+-- value to control whether the directory is searched recursively) and all
+-- results will be combined.
+listFortuneFilesIn :: [(FilePath, Bool)] -> IO [FilePath]
 listFortuneFilesIn = fmap concat . mapM (uncurry (flip listFortuneFiles))
 
+-- |Like 'listFortuneFiles' except only returning paths with the 
+-- specified file name.
+findFortuneFile :: Bool -> FilePath -> String -> IO [FilePath]
 findFortuneFile rec dir file = liftA2 (++) checkHere (search dir)
     where 
         checkHere
@@ -120,18 +148,27 @@ findFortuneFile rec dir file = liftA2 (++) checkHere (search dir)
                 hasIndex <- doesIndexFileExist path
                 return [ path | hasIndex ]
 
+-- |Like 'listFortuneFilesIn' except only returning paths with the 
+-- specified file name.
+findFortuneFileIn :: [(String, Bool)] -> String -> IO [FilePath]
 findFortuneFileIn dirs file = concat <$> sequence
     [ findFortuneFile rec dir file | (dir, rec) <- dirs]
 
+-- |Like 'findFortuneFileIn' but searches for multiple files in multiple directories.
+findFortuneFilesIn :: [(String, Bool)] -> [String] -> IO [FilePath]
 findFortuneFilesIn dirs files = 
     concat <$> mapM (findFortuneFileIn dirs) files
 
+-- |Three different search paths are supported, depending on the \"type\" of fortune
+-- requested.  These are the types that can be requested.
 data FortuneType
     = All
     | Normal
     | Offensive
     deriving (Eq, Ord, Read, Show, Enum, Bounded)
 
+-- |Get the path of the directory containing built-in fortunes of the specified type.
+getFortuneDir :: FortuneType -> IO FilePath
 getFortuneDir fortuneType = do
     dir <- getDataDir
     return $! case fortuneType of
@@ -139,11 +176,13 @@ getFortuneDir fortuneType = do
         Normal      -> dir </> "normal"
         Offensive   -> dir </> "offensive"
 
+-- |Get a list of all fortune files on the configured search path (see 'getFortuneSearchPath')
+defaultFortuneFiles :: FortuneType -> IO [FilePath]
 defaultFortuneFiles fortuneType = 
     getFortuneSearchPath fortuneType >>= listFortuneFilesIn
 
-defaultFortuneFileNames fType = map takeFileName <$> defaultFortuneFiles fType
-
+-- |Get the default search path for a specified fortune type (ignoring the @MISFORTUNE_PATH@ environment variables)
+defaultFortuneSearchPath :: FortuneType -> IO [(FilePath, Bool)]
 defaultFortuneSearchPath fortuneType = do
     dir <- getFortuneDir fortuneType
     return [(".", False), (dir, True)]
@@ -153,6 +192,17 @@ getEnv' typeStr key = do
     let lookup' k = First . lookup k
     return $ getFirst (lookup' (key ++ "_" ++ typeStr) env
                     <> lookup' key env)
+
+-- |Get the configured search path for a specified fortune type.
+-- If the environment variable @MISFORTUNE_PATH_<TYPE>@ is set, it will be used.
+-- Otherwise, if @MISFORTUNE_PATH@ is set, it will be used.  Otherwise, the
+-- 'defaultFortuneSearchPath' will be used.
+--
+-- Environment variables are interpreted by splitting on @':'@ and checking
+-- for an optional '+' or '-' prefix on each component (where '+' indicates 
+-- recursive search of that directory).  The default is non-recursive search
+-- for each component.
+getFortuneSearchPath :: FortuneType -> IO [(FilePath, Bool)]
 getFortuneSearchPath defaultType
     = getEnv' (map toUpper $ show defaultType) "MISFORTUNE_PATH"
     >>= maybe (defaultFortuneSearchPath defaultType)
@@ -170,14 +220,22 @@ getFortuneSearchPath defaultType
         split xs = a : split (drop 1 b)
             where (a, b) = break (':' ==) xs
 
+-- |Search for all fortune files in the configured search path with the given name.
+resolveFortuneFile :: FortuneType -> String -> IO [FilePath]
 resolveFortuneFile defaultType file = do
     dirs <- getFortuneSearchPath defaultType
     findFortuneFileIn dirs file
 
+-- |Search for all fortune files in the configured search path with any of the given names.
+resolveFortuneFiles :: FortuneType -> [String] -> IO [FilePath]
 resolveFortuneFiles defaultType files = do
     dirs <- getFortuneSearchPath defaultType
     findFortuneFilesIn dirs files
 
+-- |Select a random fortune from all files matching any of a list of names (or if the 
+-- list is empty, all fortune files on the search path).  Every fortune string will have
+-- an equal probability of being selected.
+randomFortune :: [String] -> IO String
 randomFortune [] = do
     paths <- defaultFortuneFiles Normal
     if null paths
@@ -187,6 +245,8 @@ randomFortune [] = do
 randomFortune paths = withFortuneFiles paths '%' False $ \fs -> do
     randomFortuneFromRandomFile . rvar =<< defaultFortuneDistribution fs
 
+-- |Select a random fortune file from a specified distribution and then select a
+-- random fortune from that file (unformly).
 randomFortuneFromRandomFile :: RVar FortuneFile -> IO String
 randomFortuneFromRandomFile file = do
     f <- sample file
@@ -194,6 +254,9 @@ randomFortuneFromRandomFile file = do
     i <- sample (uniform 0 (n-1))
     T.unpack <$> getFortune f i
 
+-- |Given a list of 'FortuneFile's, compute a distrubution over them weighted by the number
+-- of fortunes in each.  If this distribution is used with 'randomFortuneFromRandomFile',
+-- the result will be a uniform selection over all the fortunes in all the files.
 defaultFortuneDistribution :: [FortuneFile] -> IO (Categorical Float FortuneFile)
 defaultFortuneDistribution [] = fail "defaultFortuneDistribution: no fortune files"
 defaultFortuneDistribution fs = fromWeightedList <$> sequence
@@ -203,7 +266,12 @@ defaultFortuneDistribution fs = fromWeightedList <$> sequence
     | f <- fs
     ]
 
--- |Events are (fortune file, distribution over matching fortune indices)
+-- TODO: allow the filter to assign a weight to each fortune, then weight the files
+-- by the total weight in their fortune-distributions (discarding zeros at both levels).
+
+-- |Like 'defaultFortuneDistribution', but filtering the fortunes.  In addition to the
+-- fortune file, the tuples in the distribution include a distribution over the
+-- matching fortune indices in that file, assigning equal weight to each.
 fortuneDistributionWhere 
     :: (FortuneFile -> Int -> IndexEntry -> IO Bool) 
     -> [FortuneFile]
@@ -216,10 +284,17 @@ fortuneDistributionWhere p files =
             return (fromIntegral (numEvents iDist), (f, iDist))
         | f <- files
         ]
+
+-- |Perform an action with an open 'FortuneFile', ensuring the file is closed
+-- when the action exits.
+withFortuneFile :: FilePath -> Char -> Bool -> (FortuneFile -> IO a) -> IO a
 withFortuneFile path delim writeMode = 
     bracket (openFortuneFile path delim writeMode)
              closeFortuneFile
 
+-- |Perform an action with many open 'FortuneFile's, ensuring the files are closed
+-- when the action exits.
+withFortuneFiles :: [FilePath] -> Char -> Bool -> ([FortuneFile] -> IO a) -> IO a
 withFortuneFiles [] _ _ action = action []
 withFortuneFiles (p:ps) delim writeMode action =
     withFortuneFile  p  delim writeMode $ \p ->

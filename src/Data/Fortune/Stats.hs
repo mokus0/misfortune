@@ -11,6 +11,9 @@ import Data.Maybe
 import Data.Semigroup
 import Data.Typeable
 
+-- |Some statistics about the fortunes in a database.  These are stored in 
+-- the index file and used to speed up various calculations that would otherwise
+-- require re-reading lots of files.
 data FortuneStats = FortuneStats
     { numFortunes   :: !(Sum Int)
     , offsetAfter   :: !(Max Int)
@@ -28,10 +31,13 @@ instance Semigroup FortuneStats where
 instance Monoid FortuneStats where
     mempty = wrap mempty; mappend = (<>)
 
+-- |Errors that can be thrown when stats are read from an index file.
+-- These errors describe various logical inconsistencies that generally
+-- indicate that the index file is corrupted somehow.
 data StatsProblem
-    = NegativeCount Int
-    | NegativeLength Int
-    | NegativeOffset Int
+    = NegativeCount !Int
+    | NegativeLength !Int
+    | NegativeOffset !Int
     | LengthsWithoutEntries
     | EntriesWithoutLengths
     | MaxLengthLessThanMinLength
