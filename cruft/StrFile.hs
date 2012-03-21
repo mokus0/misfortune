@@ -11,7 +11,24 @@
 -- The result is that on 64-bit systems, the fields are 64 bits wide and contain a 32-bit 
 -- big-endian word in either the lower or the upper 32 bits, depending on the endianness of
 -- the host.
-module Data.Fortune.StrFile (StrFileHeader(..), putStrFileHeader, getStrFileHeader) where
+--
+-- TODO: detect whether file was encoded on a 32-bit system, a 64-bit BE system, or a 
+-- 64-bit LE system, and read it correctly.  This shouldn't be that hard actually - the first
+-- 8 bytes should be enough to tell.
+module Data.Fortune.Index.Legacy 
+    ( randomFlag
+    , orderedFlag
+    , rotatedFlag
+    
+    , StrFileHeader(..)
+    , processedPtrs
+    , putStrFileHeader
+    , getStrFileHeader
+    
+    , StrFile
+    , putStrFile
+    , getStrFile
+    ) where
 
 import Control.Monad
 import Data.Bits
@@ -28,7 +45,7 @@ import Foreign.Storable (alignment)
     the instruction set (presumably the alignment requirements for unsigned int).
     
     The offset table directly follows the header (including any padding of the last 
-    field), and contains numStrings (or numStrings + 1, depending on includesPtrs)
+    field), and contains numStrings (or numStrings + 1, depending on processedPtrs)
     off_t values in the same bastardized 32-bits-in-64-bits stupid-endian format. 
  -}
 
@@ -45,7 +62,7 @@ data StrFileHeader = StrFileHeader
     , strDelim      :: !Word8
     } deriving (Eq, Show)
 
-includesPtrs hdr = (strFlags hdr .&. (randomFlag .|. orderedFlag) /= 0)
+processedPtrs hdr = (strFlags hdr .&. (randomFlag .|. orderedFlag) /= 0)
 
 type StrFile = (StrFileHeader, [Int64])
 

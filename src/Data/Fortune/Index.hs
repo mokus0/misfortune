@@ -197,9 +197,8 @@ instance Exception IndexProblem where
 
 -- |Force a consistency check on an index file.
 checkIndex :: Index -> IO (Maybe IndexProblem)
-checkIndex (Index file hdrRef) = do
-    foo <- try (withMVar hdrRef (checkIndex_ file))
-    return (either Just id foo)
+checkIndex (Index file hdrRef) =
+    either Just id <$> try (withMVar hdrRef (checkIndex_ file))
 
 -- TODO: also random spot-check for validity of table entries (mostly that they are consistent with the stats).
 checkIndex_ file hdr =
