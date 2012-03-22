@@ -149,9 +149,9 @@ getFortuneDir :: FortuneType -> IO FilePath
 getFortuneDir fortuneType = do
     dir <- getDataDir
     return $! case fortuneType of
-        All         -> dir
-        Normal      -> dir </> "normal"
-        Offensive   -> dir </> "offensive"
+        All         -> dir </> "data"
+        Normal      -> dir </> "data" </> "normal"
+        Offensive   -> dir </> "data" </> "offensive"
 
 -- |Get a list of all fortune files on the configured search path (see 'getFortuneSearchPath')
 defaultFortuneFiles :: FortuneType -> IO [FilePath]
