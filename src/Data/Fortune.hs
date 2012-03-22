@@ -267,14 +267,14 @@ fortuneDistributionWhere p files =
         ]
 
 -- |Perform an action with an open 'FortuneFile', ensuring the file is closed
--- when the action exits.
+-- when the action finishes.
 withFortuneFile :: Char -> Bool -> FilePath -> (FortuneFile -> IO a) -> IO a
 withFortuneFile delim writeMode path = 
     bracket (openFortuneFile delim writeMode path)
              closeFortuneFile
 
 -- |Perform an action with many open 'FortuneFile's, ensuring the files are closed
--- when the action exits.
+-- when the action finishes.
 withFortuneFiles :: Char -> Bool -> [FilePath] -> ([FortuneFile] -> IO a) -> IO a
 withFortuneFiles _ _ [] action = action []
 withFortuneFiles delim writeMode (p:ps) action =
