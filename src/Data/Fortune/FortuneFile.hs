@@ -68,13 +68,14 @@ openFortuneFile path delim writeMode = do
         , fortuneIndex      = ixRef
         }
 
--- |Close a fortune file. Subsequent accesses can re-open the file.
--- 
--- TODO: Fix the semantics of this function, it's actually even weirder that that.
+-- |Close a fortune file. Subsequent accesses will fail.
 closeFortuneFile :: FortuneFile -> IO ()
 closeFortuneFile f = do
-    maybe (return ()) closeIndex =<< readMVar (fortuneIndex f)
-    maybe (return ()) hClose     =<< readMVar (fortuneFile  f)
+    maybe (return ()) hClose     =<< takeMVar (fortuneFile  f)
+    putMVar (fortuneFile f) (error "Fortune file is closed")
+    
+    maybe (return ()) closeIndex =<< takeMVar (fortuneIndex f)
+    putMVar (fortuneIndex f) (error "Fortune file is closed")
 
 withFortuneFile f action = modifyMVar (fortuneFile f) $ \mbFile ->
     case mbFile of
