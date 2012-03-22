@@ -52,30 +52,29 @@ usage errors = do
     
     exitWith (if isErr then ExitFailure 1 else ExitSuccess)
 
-data Flag = A | E | F | I | L  | M String | S | LL Int | N Int | O | Path | H | V deriving Eq
+data Flag = A | D FilePath | E | F | I | L  | M String | S | LL Int | N Int | O | Path | H | V deriving Eq
 
 flags = 
-    [ Option "a"  ["all"]       (NoArg A)       "Use all fortune databases, even offensive ones"
-    , Option "e"  []            (NoArg E)       "Select fortune file with equal probability for all"
-    , Option "f"  []            (NoArg F)       "List the fortune files that would be searched"
-    , Option "i"  []            (NoArg I)       "Match the pattern given by -m case-insensitively"
-    , Option "l"  ["long"]      (NoArg L)       "Print a long fortune"
-    , Option "L"  []            (ReqArg ll num) "Consider fortunes with more than n lines to be \"long\""
-    , Option "m"  []            (ReqArg  M  rx) "Restrict fortunes to those matching <regex>"
-    , Option "n"  []            (ReqArg  n num) "Consider fortunes with more than n chars to be \"long\""
-    , Option "s"  ["short"]     (NoArg S)       "Print a short fortune"
-    , Option "o"  ["offensive"] (NoArg O)       "Use only the potentially-offensive databases"
-    , Option "h?" ["help"]      (NoArg H)       "Show this help message"
-    , Option ""   ["version"]   (NoArg V)       "Print version info and exit"
-    , Option ""   ["path"]      (NoArg Path)    "Print the effective search path and exit"
+    [ Option "a"  ["all"]       (NoArg A)             "Use all fortune databases, even offensive ones"
+    , Option "d"  ["dump"]      (ReqArg D "<path>")   "Dump all selected fortunes to a fortune file at <path>"
+    , Option "e"  []            (NoArg E)             "Select fortune file with equal probability for all"
+    , Option "f"  []            (NoArg F)             "List the fortune files that would be searched"
+    , Option "i"  []            (NoArg I)             "Match the pattern given by -m case-insensitively"
+    , Option "l"  ["long"]      (NoArg L)             "Print a long fortune"
+    , Option "L"  []            (ReqArg ll "<n>")     "Consider fortunes with more than n lines to be \"long\""
+    , Option "m"  []            (ReqArg  M "<regex>") "Restrict fortunes to those matching <regex>"
+    , Option "n"  []            (ReqArg  n "<n>")     "Consider fortunes with more than n chars to be \"long\""
+    , Option "s"  ["short"]     (NoArg S)             "Print a short fortune"
+    , Option "o"  ["offensive"] (NoArg O)             "Use only the potentially-offensive databases"
+    , Option "h?" ["help"]      (NoArg H)             "Show this help message"
+    , Option ""   ["version"]   (NoArg V)             "Print version info and exit"
+    , Option ""   ["path"]      (NoArg Path)          "Print the effective search path and exit"
     ] where
         rd x = case reads x of
             (y, ""):_ -> y
             _         -> error ("failed to parse command line option: " ++ show x)
         ll = LL . rd
         n  = N  . rd
-        num = "<n>"; rx = "<regex>"
-        
 
 data Threshold = Chars Int | Lines Int
 defaultThreshold = Lines 2
@@ -87,6 +86,7 @@ type FortuneFilter = FortuneFile -> Int -> IndexEntry -> IO Bool
 data Args = Args
     { equalProb         :: Bool
     , printDist         :: Bool
+    , dumpFortunes      :: Maybe FilePath
     , fortuneFilters    :: [FortuneFilter]
     , threshold         :: Threshold
     , fortuneFiles      :: [FortuneFile]
@@ -141,6 +141,7 @@ parseArgs = do
     return Args
         { equalProb = E `elem` opts
         , printDist = F `elem` opts
+        , dumpFortunes = listToMaybe [ path | D path <- opts ]
         , fortuneFilters = catMaybes (map mkFilter opts)
         , ..
         }
@@ -185,6 +186,24 @@ resolve searchPath fullSearchPath file = case splitPath file of
 main = do
     args <- parseArgs
     let fortunes = fortuneFiles args
+    
+    case dumpFortunes args of
+        Nothing -> return ()
+        Just outPath -> do
+            out <- openFortuneFile outPath '%' True
+            
+            sequence_
+                [ do
+                    let allFilters i e = andM [p file i e | p <- fortuneFilters args]
+                    selected <- filterFortunesWithIndexM allFilters file
+                    sequence_
+                        [ getFortune file i >>= appendFortune out
+                        | i <- selected
+                        ]
+                | file <- fortunes
+                ]
+            
+            exitWith ExitSuccess
     
     dist <- getDist args fortunes
     
