@@ -14,8 +14,6 @@ To index a new fortune file (or update the index on an existing one), run:
 
     misfortune-strfile path/to/file
 
-Note that `misfortune` uses a different format for its index files than `fortune` does.  If there is an existing fortune-mod index file, it will not be overwritten.
-
 To use the fortune API in your Haskell programs:
 
     import Data.Fortune
