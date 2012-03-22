@@ -8,6 +8,6 @@ main = do
     mapM_ index args
 
 index file = do
-    fortune <- openFortuneFile file '%' True
+    fortune <- openFortuneFile '%' True file
     rebuildIndex fortune
     

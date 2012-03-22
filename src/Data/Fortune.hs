@@ -226,7 +226,7 @@ randomFortune [] = do
         then return "Very few profundities can be expressed in less than 80 characters."
         else randomFortune paths
 
-randomFortune paths = withFortuneFiles paths '%' False $ \fs -> do
+randomFortune paths = withFortuneFiles '%' False paths $ \fs -> do
     randomFortuneFromRandomFile . rvar =<< defaultFortuneDistribution fs
 
 -- |Select a random fortune file from a specified distribution and then select a
@@ -250,9 +250,6 @@ defaultFortuneDistribution fs = fromWeightedList <$> sequence
     | f <- fs
     ]
 
--- TODO: allow the filter to assign a weight to each fortune, then weight the files
--- by the total weight in their fortune-distributions (discarding zeros at both levels).
-
 -- |Like 'defaultFortuneDistribution', but filtering the fortunes.  In addition to the
 -- fortune file, the tuples in the distribution include a distribution over the
 -- matching fortune indices in that file, assigning equal weight to each.
@@ -271,18 +268,18 @@ fortuneDistributionWhere p files =
 
 -- |Perform an action with an open 'FortuneFile', ensuring the file is closed
 -- when the action exits.
-withFortuneFile :: FilePath -> Char -> Bool -> (FortuneFile -> IO a) -> IO a
-withFortuneFile path delim writeMode = 
-    bracket (openFortuneFile path delim writeMode)
+withFortuneFile :: Char -> Bool -> FilePath -> (FortuneFile -> IO a) -> IO a
+withFortuneFile delim writeMode path = 
+    bracket (openFortuneFile delim writeMode path)
              closeFortuneFile
 
 -- |Perform an action with many open 'FortuneFile's, ensuring the files are closed
 -- when the action exits.
-withFortuneFiles :: [FilePath] -> Char -> Bool -> ([FortuneFile] -> IO a) -> IO a
-withFortuneFiles [] _ _ action = action []
-withFortuneFiles (p:ps) delim writeMode action =
-    withFortuneFile  p  delim writeMode $ \p ->
-        withFortuneFiles ps delim writeMode $ \ps ->
+withFortuneFiles :: Char -> Bool -> [FilePath] -> ([FortuneFile] -> IO a) -> IO a
+withFortuneFiles _ _ [] action = action []
+withFortuneFiles delim writeMode (p:ps) action =
+    withFortuneFile delim writeMode p $ \p ->
+        withFortuneFiles delim writeMode ps $ \ps ->
             action (p:ps)
 
 mapFortunesWithIndexM p f = 

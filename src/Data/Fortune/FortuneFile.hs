@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE RecordWildCards #-}
 module Data.Fortune.FortuneFile
      ( FortuneFile
      , fortuneFilePath
@@ -52,21 +53,15 @@ fortuneIndexPath f = fortunePath f <.> "ix"
 -- using @delim@ as the character between strings, allowing writing if
 -- @writeMode@ is set.  If no file exists at the specified path, an error
 -- will be thrown or the file will be created, depending on @writeMode@.
-openFortuneFile :: FilePath -> Char -> Bool -> IO FortuneFile
-openFortuneFile path delim writeMode = do
-    exists <- doesFileExist path
-    when (not (exists || writeMode))
-        (fail ("openFortuneFile: file does not exist: " ++ show path))
+openFortuneFile :: Char -> Bool -> FilePath -> IO FortuneFile
+openFortuneFile fortuneDelim fortuneWritable fortunePath = do
+    exists <- doesFileExist fortunePath
+    when (not (exists || fortuneWritable))
+        (fail ("openFortuneFile: file does not exist: " ++ show fortunePath))
     
-    fileRef <- newMVar Nothing
-    ixRef   <- newMVar Nothing
-    return FortuneFile
-        { fortunePath       = path
-        , fortuneDelim      = delim
-        , fortuneWritable   = writeMode
-        , fortuneFile       = fileRef
-        , fortuneIndex      = ixRef
-        }
+    fortuneFile  <- newMVar Nothing
+    fortuneIndex <- newMVar Nothing
+    return FortuneFile{..}
 
 -- |Close a fortune file. Subsequent accesses will fail.
 closeFortuneFile :: FortuneFile -> IO ()
@@ -167,6 +162,9 @@ enumUTF8 file = do
     
     return getOne
 
+-- try to decode the first UTF-8 char in a buffer.  If the decoding fails 
+-- (returns replacement_char), then check if the whole buffer was used.
+-- if it was, we probably just need more data so return Nothing.
 tryDecode bs = case U.decode bs of
     Just (c, n)
         | c /= U.replacement_char || n /= BS.length bs
@@ -262,7 +260,6 @@ getNumFortunes f = do
 -- needed and updating the index.
 appendFortune :: FortuneFile -> T.Text -> IO ()
 appendFortune f fortune = do
-    -- TODO: detect whether a reindex is actually needed
     rebuildIndex f
     withFileAndIndex f $ \file ix -> do
         offset <- max 0 . getMax . offsetAfter <$> getStats ix

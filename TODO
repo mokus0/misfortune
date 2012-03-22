@@ -1,3 +1,24 @@
 more flexible length restriction options - probably flags to allow user to specify range of lengths of both lines and chars
 %
-collect up TODOs and put them all here, so I can play TODO roulette
+Experiment with iteratees instead of 'unfoldEntries'.  They might actually simplify things.
+%
+print files in a tree in `misfortune -f` output.
+%
+Add ability to get more interesting stats from files (average line count, min/max/avg line length, etc).
+%
+Add ability to create more "interesting" distributions.  Maybe even use 'hint' or something to read in code on the command-line to compute a distribution.
+%
+detect when a reindex is actually needed in 'appendFortune' and don't reindex unnecessarily.
+%
+add ability to sort/randomize index files in strfile command?
+%
+in checkIndex: random spot-check in for validity of table entries (mostly that they are consistent with the stats).
+%
+create build flag to control whether/how often index files are sanity-checked after index-changing operations.
+%
+support "-d" to stdout
+%
+more write operations: insert/delete fortunes...
+semantics for these could be tricky, since the order of strings in the file need not be the same as the order of entries in the index.
+%
+Utility for finding duplicate fortunes

@@ -214,7 +214,6 @@ checkIndex :: Index -> IO (Maybe IndexProblem)
 checkIndex (Index file hdrRef) =
     either Just id <$> try (withMVar hdrRef (checkIndex_ file))
 
--- TODO: also random spot-check for validity of table entries (mostly that they are consistent with the stats).
 checkIndex_ file hdr =
     case checkHeader hdr of
         Just problem -> return (Just (HeaderProblem problem))
@@ -232,7 +231,6 @@ withIndex ix@(Index file hdrRef) action = withMVar hdrRef $ \hdr -> do
         count = numFortunes (stats hdr) 
     res <- action file base (getSum count)
     
-    -- TODO: build flag to control paranoia level?
     checkIndex_ file hdr >>= maybe (return res) throwIO
     
 
@@ -243,7 +241,6 @@ modifyHeader (Index file hdrRef) action = modifyMVar_ hdrRef $ \hdr -> do
         hSeek file AbsoluteSeek 0
         BS.hPut file (runPut (putHeader newHdr))
     
-    -- TODO: build flag to control paranoia level?
     checkIndex_ file newHdr >>= maybe (return newHdr) throwIO
 
 -- |Get some cached stats about the fortunes indexed in this file.
