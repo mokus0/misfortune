@@ -16,9 +16,9 @@ description:            fortune-mod clone, in library and executable form.
 
 extra-source-files:     README.md
 data-dir:               data
-data-files:             normal/*.dat
+data-files:             normal/*.ix
                         normal/bash
-                        normal/lambdabot/*.dat
+                        normal/lambdabot/*.ix
                         normal/lambdabot/arr
                         normal/lambdabot/b52s
                         normal/lambdabot/brain
@@ -32,13 +32,13 @@ data-files:             normal/*.dat
                         normal/lambdabot/pinky-pondering
                         normal/lambdabot/protontorpedo
                         normal/lambdabot/stewie
-                        normal/*.dat
-                        offensive/*.dat
+                        normal/*.ix
+                        offensive/*.ix
                         offensive/bash
-                        offensive/lambdabot/*.dat
+                        offensive/lambdabot/*.ix
                         offensive/lambdabot/nixon
                         offensive/lambdabot/yarr
-                        normal/fortune-mod/*.dat
+                        normal/fortune-mod/*.ix
                         normal/fortune-mod/art
                         normal/fortune-mod/ascii-art
                         normal/fortune-mod/computers
@@ -74,7 +74,7 @@ data-files:             normal/*.dat
                         normal/fortune-mod/wisdom
                         normal/fortune-mod/work
                         normal/fortune-mod/zippy
-                        offensive/fortune-mod/*.dat
+                        offensive/fortune-mod/*.ix
                         offensive/fortune-mod/astrology
                         offensive/fortune-mod/black-humor
                         offensive/fortune-mod/definitions

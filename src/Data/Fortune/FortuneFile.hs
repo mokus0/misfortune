@@ -46,7 +46,7 @@ fortuneFilePath = fortunePath
 
 -- |Get the path of the index part of an open fortune database.
 fortuneIndexPath :: FortuneFile -> FilePath
-fortuneIndexPath f = fortunePath f <.> "dat"
+fortuneIndexPath f = fortunePath f <.> "ix"
 
 -- |@openFortuneFile path delim writeMode@: Open a fortune file at @path@,
 -- using @delim@ as the character between strings, allowing writing if

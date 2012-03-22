@@ -104,11 +104,11 @@ traverseDir rec onFile = fix $ \search dir ->
 -- |List all the fortune files in a directory.  The 'Bool' value
 -- specifies whether to search subtrees as well.
 --
--- Any file which does not have \".dat\" extension will be reported
+-- Any file which does not have \".ix\" extension will be reported
 -- as a fortune file.
 listFortuneFiles :: Bool -> FilePath -> IO [FilePath]
 listFortuneFiles rec = traverseDir rec onFile
-    where onFile path = return [ path | takeExtension path /= ".dat" ]
+    where onFile path = return [ path | takeExtension path /= ".ix" ]
 
 -- |List all the fortune files in several directories.  Each directory
 -- will be searched by 'listFortuneFiles' (using the corresponding 'Bool' 
