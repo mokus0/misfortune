@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
 module Data.Fortune.FortuneFile
      ( FortuneFile
@@ -224,9 +225,13 @@ enumFortuneLocs file delim = do
     
     return nextFortune
 
+#if !MIN_VERSION_base(4,6,0)
+
 modifyIORef' r f = do
     x <- readIORef r
     writeIORef r $! f x
+
+#endif
 
 getByIndex file (IndexEntry loc len _ _) = do
     hSeek file AbsoluteSeek (toInteger loc)
