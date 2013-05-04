@@ -44,7 +44,7 @@ usage errors = do
     let isErr = not (null errors)
         out = if isErr then stderr else stdout
     
-    mapM_ (hPutStr out) errors
+    mapM_ (hPutStrLn out) errors
     when isErr (hPutStrLn out "")
     
     hPutStrLn out versionString
@@ -97,7 +97,7 @@ filterFortune args file i e = andM [p file (Just (i, e)) | p <- fortuneFilters a
 
 parseArgs = do
     (opts, files, errors) <- getOpt Permute flags <$> getArgs
-    when (not (null errors))       (usage errors)
+    when (not (null errors)) (usage (errors >>= lines))
     when (H `elem` opts) (usage [])
     when (V `elem` opts) printVersion
     
