@@ -126,6 +126,9 @@ Library
                         text,
                         utf8-string,
                         vector
+  if impl(ghc == 7.0.*)
+    -- utf8-string-1.0.1 does not build on GHC 7.0.x
+    build-depends:      utf8-string == 1
   if impl(ghc >= 7.10)
     -- random-fu < 0.2.6.2 won't build on GHC 7.10
     build-depends:      random-fu >= 0.2.6.2
