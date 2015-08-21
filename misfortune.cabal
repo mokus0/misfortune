@@ -14,6 +14,14 @@ category:               Console, Game
 synopsis:               fortune-mod clone
 description:            fortune-mod clone, in library and executable form.
 
+tested-with:            GHC == 7.0.4,
+                        GHC == 7.2.2,
+                        GHC == 7.4.2,
+                        GHC == 7.6.3,
+                        GHC == 7.8.4,
+                        GHC == 7.10.1,
+                        GHC == 7.11
+
 data-files:             README.md
                         README.fortune-mod.md
                         README.lambdabot.md

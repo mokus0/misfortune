@@ -1,4 +1,4 @@
-misfortune ![Build Status](https://travis-ci.org/mokus0/misfortune.png)
+misfortune [![Build Status](https://travis-ci.org/mokus0/misfortune.svg)](https://travis-ci.org/mokus0/misfortune)
 ===========
 
 This is a fortune-mod clone.  In addition to the features generally expected of a `fortune` program, this can be used as a Haskell library (`import Data.Fortune`) and also supports UTF-8 fortune files, configurable search paths, automatic merging of fortune databases with the same name (so you can have a local fortunes folder that just adds to existing fortune databases), filtering fortunes by line lengths, and a "print fortune matching regex" mode (instead of just "print all fortunes matching regex" mode).
