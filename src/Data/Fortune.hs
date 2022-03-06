@@ -64,6 +64,7 @@ import Paths_misfortune
 import System.Directory
 import System.Environment
 import System.FilePath
+import System.Random.Stateful (newIOGenM, newStdGen)
 
 -- |The number of fortune strings in the index
 numFortunes :: S.FortuneStats -> Int
@@ -233,9 +234,10 @@ randomFortune paths = withFortuneFiles '%' False paths $ \fs -> do
 -- random fortune from that file (unformly).
 randomFortuneFromRandomFile :: RVar FortuneFile -> IO String
 randomFortuneFromRandomFile file = do
-    f <- sample file
+    gen <- newStdGen >>= newIOGenM
+    f <- sampleFrom gen file
     n <- getNumFortunes f
-    i <- sample (uniform 0 (n-1))
+    i <- sampleFrom gen (uniform 0 (n-1))
     T.unpack <$> getFortune f i
 
 -- |Given a list of 'FortuneFile's, compute a distrubution over them weighted by the number

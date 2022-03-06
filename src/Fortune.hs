@@ -21,6 +21,7 @@ import System.Environment
 import System.Exit
 import System.FilePath
 import System.IO
+import System.Random.Stateful (newIOGenM, newStdGen)
 import Text.Printf
 import Text.Regex.Base
 import Text.Regex.PCRE
@@ -200,6 +201,7 @@ main = do
     fortunes <- filterM (filterFile args) (fortuneFiles args)
     
     dist <- getDist args fortunes
+    gen <- newStdGen >>= newIOGenM
     
     when (numEvents dist == 0) $ do
         hPutStrLn stderr "No fortunes matched the filter criteria"
@@ -225,8 +227,8 @@ main = do
             , let pctStr = printf "(%.2f%%)" (100 * weight / totalWeight dist) :: String
             ]
         else do
-            (file, fortuneDist) <- sample dist
-            fortune <- sample fortuneDist
+            (file, fortuneDist) <- sampleFrom gen dist
+            fortune <- sampleFrom gen fortuneDist
             putStrLn . T.unpack =<< getFortune file fortune
 
 getDist :: Args -> [FortuneFile] -> IO (Categorical Float (FortuneFile, Categorical Float Int))
